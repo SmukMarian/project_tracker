@@ -1,0 +1,159 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { fetchCategories, fetchPMs, fetchProjects, fetchWorkspace } from './api';
+import LeftPanel from './components/LeftPanel';
+import ProjectCard from './components/ProjectCard';
+import StepsPanel from './components/StepsPanel';
+import TopMenu from './components/TopMenu';
+import { categories as seedCategories, pms as seedPMs } from './data';
+import { Category, Project } from './types';
+
+const App: React.FC = () => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [workspacePath, setWorkspacePath] = useState('');
+  const seedProjects = useMemo(
+    () => seedCategories.flatMap((c) => c.projects.map((p) => ({ ...p, category_id: c.id }))),
+    []
+  );
+
+  const [categories, setCategories] = useState<Category[]>(seedCategories);
+  const [projects, setProjects] = useState<Project[]>(seedProjects);
+  const [pmDirectory, setPmDirectory] = useState(seedPMs);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [workspace, pms, fetchedCategories, fetchedProjects] = await Promise.all([
+          fetchWorkspace(),
+          fetchPMs(),
+          fetchCategories(),
+          fetchProjects({})
+        ]);
+        if (!isMounted) return;
+        setWorkspacePath(workspace?.path ?? '');
+        setPmDirectory(pms.length ? pms : seedPMs);
+        setCategories(fetchedCategories.length ? fetchedCategories : seedCategories);
+        setProjects(fetchedProjects.length ? fetchedProjects : seedProjects);
+        setError(null);
+      } catch (err) {
+        if (!isMounted) return;
+        setError('API недоступно, показаны мок-данные.');
+        setPmDirectory(seedPMs);
+        setCategories(seedCategories);
+        setProjects(seedProjects);
+      } finally {
+        if (!isMounted) return;
+        setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (error) return;
+    let isMounted = true;
+    const loadProjects = async () => {
+      try {
+        const fetched = await fetchProjects({
+          category_id: selectedCategoryId ?? undefined,
+          search: projectFilter || undefined
+        });
+        if (!isMounted) return;
+        setProjects(fetched.length ? fetched : seedProjects);
+      } catch (err) {
+        if (!isMounted) return;
+        setError('API недоступно, показаны мок-данные.');
+        setProjects(seedProjects);
+      }
+    };
+    loadProjects();
+    return () => {
+      isMounted = false;
+    };
+  }, [error, projectFilter, selectedCategoryId, seedProjects]);
+
+  const categoriesWithProjects = useMemo(() => {
+    return categories.map((category) => ({
+      ...category,
+      projects: projects.filter((project) => project.category_id === category.id)
+    }));
+  }, [categories, projects]);
+
+  useEffect(() => {
+    if (!categoriesWithProjects.length) return;
+    const firstCategory = categoriesWithProjects[0];
+    const currentCategory = categoriesWithProjects.find((c) => c.id === selectedCategoryId);
+    const categoryToUse = currentCategory ?? firstCategory;
+    if (selectedCategoryId === null || categoryToUse.id !== selectedCategoryId) {
+      setSelectedCategoryId(categoryToUse.id);
+    }
+
+    const firstProject = categoryToUse.projects[0];
+    const hasCurrentProject = categoryToUse.projects.some((p) => p.id === selectedProjectId);
+    if (!hasCurrentProject) {
+      setSelectedProjectId(firstProject ? firstProject.id : null);
+    }
+  }, [categoriesWithProjects, selectedCategoryId, selectedProjectId]);
+
+  const selectedProject: Project | null = useMemo(() => {
+    const category = categoriesWithProjects.find((c) => c.id === selectedCategoryId);
+    return category?.projects.find((p) => p.id === selectedProjectId) ?? null;
+  }, [categoriesWithProjects, selectedCategoryId, selectedProjectId]);
+
+  const handleSelectProject = (categoryId: number, projectId: number) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedProjectId(projectId);
+  };
+
+  return (
+    <div className="app">
+      <TopMenu
+        onToggleSidebar={() => setCollapsed((v) => !v)}
+        onNewCategory={() => alert('Диалог создания категории (заглушка).')}
+        onNewProject={() => alert('Диалог создания проекта (заглушка).')}
+      />
+
+      <div className="layout">
+        {!collapsed && (
+          <LeftPanel
+            categories={categoriesWithProjects}
+            selectedCategoryId={selectedCategoryId}
+            selectedProjectId={selectedProjectId}
+            onSelectCategory={setSelectedCategoryId}
+            onSelectProject={handleSelectProject}
+            categoryFilter={categoryFilter}
+            projectFilter={projectFilter}
+            onCategoryFilter={setCategoryFilter}
+            onProjectFilter={setProjectFilter}
+            workspacePath={workspacePath}
+          />
+        )}
+
+        <main className="main">
+          {loading && <div className="info">Загрузка данных…</div>}
+          {error && <div className="info warning">{error}</div>}
+          {selectedProject ? (
+            <>
+              <ProjectCard project={selectedProject} pmDirectory={pmDirectory} />
+              <StepsPanel project={selectedProject} pmDirectory={pmDirectory} />
+            </>
+          ) : (
+            <div className="empty">Выберите проект слева, чтобы увидеть детали.</div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default App;
