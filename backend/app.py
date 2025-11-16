@@ -1,9 +1,14 @@
+from io import BytesIO
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
+from openpyxl import Workbook, load_workbook
+
+from .config import get_workspace_path, set_workspace_path
 from . import models, schemas
 from .database import Base, SessionLocal, engine
 
@@ -23,6 +28,18 @@ def get_db():
 @app.get("/health")
 def healthcheck():
     return {"status": "ok"}
+
+
+@app.get("/workspace", response_model=schemas.WorkspaceState)
+def get_workspace():
+    path = get_workspace_path()
+    return schemas.WorkspaceState(path=str(path))
+
+
+@app.post("/workspace", response_model=schemas.WorkspaceState)
+def update_workspace(payload: schemas.WorkspaceUpdate):
+    path = set_workspace_path(payload.path)
+    return schemas.WorkspaceState(path=str(path))
 
 
 def _status_value(status: str, inprogress_coeff: float) -> float:
@@ -55,6 +72,70 @@ def _apply_progress(project: models.Project) -> models.Project:
     return project
 
 
+def _workbook_response(wb: Workbook, filename: str) -> StreamingResponse:
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+def _export_categories_excel(db: Session) -> StreamingResponse:
+    categories = (
+        db.query(models.Category)
+        .options(
+            joinedload(models.Category.projects)
+            .joinedload(models.Project.steps)
+            .joinedload(models.Step.subtasks)
+        )
+        .order_by(models.Category.name)
+        .all()
+    )
+
+    wb = Workbook()
+    ws_categories = wb.active
+    ws_categories.title = "Categories"
+    ws_categories.append(["ID", "Название", "Проектов"])
+    for category in categories:
+        ws_categories.append([category.id, category.name, len(category.projects)])
+
+    ws_projects = wb.create_sheet("Projects")
+    ws_projects.append(
+        [
+            "ID",
+            "Название",
+            "Код",
+            "Статус",
+            "Категория",
+            "PM",
+            "Дата старта",
+            "Целевая дата",
+            "Прогресс %",
+        ]
+    )
+    for category in categories:
+        for project in category.projects:
+            _apply_progress(project)
+            ws_projects.append(
+                [
+                    project.id,
+                    project.name,
+                    project.code,
+                    project.status,
+                    category.name,
+                    project.owner_id,
+                    project.start_date,
+                    project.target_date,
+                    project.progress_percent,
+                ]
+            )
+
+    return _workbook_response(wb, "categories.xlsx")
+
+
 def _load_project_with_steps(project_id: int, db: Session) -> models.Project:
     project = (
         db.query(models.Project)
@@ -82,6 +163,11 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 @app.get("/categories", response_model=list[schemas.Category])
 def list_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
+
+
+@app.get("/export/categories/excel")
+def export_categories_excel(db: Session = Depends(get_db)):
+    return _export_categories_excel(db)
 
 
 @app.post("/pms", response_model=schemas.PM)
@@ -392,6 +478,95 @@ def list_subtasks(
 @app.get("/projects/{project_id}/characteristics", response_model=list[schemas.ProjectCharacteristic])
 def list_characteristics(project_id: int, db: Session = Depends(get_db)):
     return db.query(models.ProjectCharacteristic).filter(models.ProjectCharacteristic.project_id == project_id).all()
+
+
+def _replace_characteristics(project_id: int, items: list[schemas.ProjectCharacteristicBase], db: Session):
+    db.query(models.ProjectCharacteristic).filter(models.ProjectCharacteristic.project_id == project_id).delete()
+    for item in items:
+        db.add(
+            models.ProjectCharacteristic(
+                project_id=project_id,
+                parameter=item.parameter,
+                value=item.value,
+            )
+        )
+    db.commit()
+    return (
+        db.query(models.ProjectCharacteristic)
+        .filter(models.ProjectCharacteristic.project_id == project_id)
+        .order_by(models.ProjectCharacteristic.id)
+        .all()
+    )
+
+
+@app.post(
+    "/projects/{project_id}/characteristics/import/json", response_model=list[schemas.ProjectCharacteristic]
+)
+def import_characteristics_json(
+    project_id: int, payload: schemas.ProjectCharacteristicImport, db: Session = Depends(get_db)
+):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return _replace_characteristics(project_id, payload.items, db)
+
+
+@app.get(
+    "/projects/{project_id}/characteristics/export/json", response_model=list[schemas.ProjectCharacteristic]
+)
+def export_characteristics_json(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return (
+        db.query(models.ProjectCharacteristic)
+        .filter(models.ProjectCharacteristic.project_id == project_id)
+        .order_by(models.ProjectCharacteristic.id)
+        .all()
+    )
+
+
+@app.post(
+    "/projects/{project_id}/characteristics/import/excel", response_model=list[schemas.ProjectCharacteristic]
+)
+async def import_characteristics_excel(
+    project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    content = await file.read()
+    workbook = load_workbook(filename=BytesIO(content))
+    sheet = workbook.active
+    items: list[schemas.ProjectCharacteristicBase] = []
+    for row in sheet.iter_rows(min_row=2, values_only=True):
+        if not row or not row[0]:
+            continue
+        parameter = str(row[0])
+        value = "" if len(row) < 2 or row[1] is None else str(row[1])
+        items.append(schemas.ProjectCharacteristicBase(parameter=parameter, value=value))
+    return _replace_characteristics(project_id, items, db)
+
+
+@app.get("/projects/{project_id}/characteristics/export/excel")
+def export_characteristics_excel(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    rows = (
+        db.query(models.ProjectCharacteristic)
+        .filter(models.ProjectCharacteristic.project_id == project_id)
+        .order_by(models.ProjectCharacteristic.id)
+        .all()
+    )
+    wb = Workbook()
+    sheet = wb.active
+    sheet.title = "Characteristics"
+    sheet.append(["Параметр", "Значение"])
+    for row in rows:
+        sheet.append([row.parameter, row.value])
+    return _workbook_response(wb, f"project_{project_id}_characteristics.xlsx")
 
 
 @app.post("/characteristics", response_model=schemas.ProjectCharacteristic)

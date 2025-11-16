@@ -61,6 +61,10 @@ class ProjectCharacteristic(ProjectCharacteristicBase):
         from_attributes = True
 
 
+class ProjectCharacteristicImport(BaseModel):
+    items: List[ProjectCharacteristicBase] = Field(default_factory=list)
+
+
 class SubtaskBase(BaseModel):
     name: str
     status: TaskStatus = TaskStatus.TODO
@@ -224,3 +228,11 @@ class BulkProjectStatusUpdate(BaseModel):
         if value is None:
             raise ValueError("Status is required")
         return value
+
+
+class WorkspaceState(BaseModel):
+    path: str
+
+
+class WorkspaceUpdate(BaseModel):
+    path: str

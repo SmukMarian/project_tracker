@@ -26,9 +26,11 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 - Reordering operations for steps and subtasks via order indices.
 - CRUD for steps and subtasks with progress calculation (project and step level) per status/weight rules.
 - CRUD for project characteristics and attachments.
+- Workspace selector persisted в `workspace_config.json` (GET/POST `/workspace`).
+- Экспорт категорий/проектов в Excel (`/export/categories/excel`).
+- Импорт/экспорт характеристик проекта в JSON/Excel.
 
 ## Next steps
-1. Add bulk operations (delete/archive), tokenized search, and status validation aligned with the UX shortcuts.
-2. Design React SPA layout matching the desktop-style UI (menu, left navigation, right workspace panels).
-3. Add export/import utilities (Excel/Word/JSON) and media handling.
-4. Package desktop wrapper that launches FastAPI and opens the SPA, ensuring clean shutdown.
+1. Подключить SPA к реальным API (workspace, справочники, проекты, экспорт/импорт) и добавить токенизированный поиск.
+2. Реализовать офисные экспорты Word/PPT и KPI-вью, подключить медиатеку/аттачменты к workspace.
+3. Собрать desktop-обёртку, которая поднимает backend и SPA, корректно завершая процессы при закрытии окна.
