@@ -29,8 +29,9 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 - Workspace selector persisted в `workspace_config.json` (GET/POST `/workspace`).
 - Экспорт категорий/проектов в Excel (`/export/categories/excel`).
 - Импорт/экспорт характеристик проекта в JSON/Excel.
+- Статическая выдача собранной SPA по `/app` при наличии `frontend/dist`.
 
 ## Next steps
 1. Подключить SPA к реальным API (workspace, справочники, проекты, экспорт/импорт) и добавить токенизированный поиск.
 2. Реализовать офисные экспорты Word/PPT и KPI-вью, подключить медиатеку/аттачменты к workspace.
-3. Собрать desktop-обёртку, которая поднимает backend и SPA, корректно завершая процессы при закрытии окна.
+3. Дополнить desktop-обёртку (автообновления, логирование), упаковать сборку в инсталлятор.

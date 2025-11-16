@@ -1,8 +1,10 @@
 from io import BytesIO
+from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -15,6 +17,14 @@ from .database import Base, SessionLocal, engine
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Haier Project Tracker API")
+
+DIST_DIR = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+if DIST_DIR.exists():
+    app.mount("/app", StaticFiles(directory=DIST_DIR, html=True), name="spa")
+
+    @app.get("/")
+    def serve_spa_root():
+        return FileResponse(DIST_DIR / "index.html")
 
 
 def get_db():

@@ -4,3 +4,4 @@ sqlalchemy
 pydantic
 openpyxl
 python-multipart
+pywebview
