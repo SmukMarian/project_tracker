@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AttachmentBase(BaseModel):
@@ -31,6 +31,11 @@ class ProjectCharacteristicCreate(ProjectCharacteristicBase):
     project_id: int
 
 
+class ProjectCharacteristicUpdate(BaseModel):
+    parameter: Optional[str] = None
+    value: Optional[str] = None
+
+
 class ProjectCharacteristic(ProjectCharacteristicBase):
     id: int
     project_id: int
@@ -50,6 +55,15 @@ class SubtaskBase(BaseModel):
 
 class SubtaskCreate(SubtaskBase):
     step_id: int
+
+
+class SubtaskUpdate(BaseModel):
+    name: Optional[str] = None
+    status: Optional[str] = None
+    weight: Optional[float] = None
+    target_date: Optional[date] = None
+    completed_date: Optional[date] = None
+    order_index: Optional[int] = None
 
 
 class Subtask(SubtaskBase):
@@ -77,10 +91,24 @@ class StepCreate(StepBase):
     project_id: int
 
 
+class StepUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    assignee_id: Optional[int] = None
+    start_date: Optional[date] = None
+    target_date: Optional[date] = None
+    completed_date: Optional[date] = None
+    order_index: Optional[int] = None
+    weight: Optional[float] = None
+    comments: Optional[str] = None
+
+
 class Step(StepBase):
     id: int
     project_id: int
-    subtasks: List[Subtask] = []
+    subtasks: List[Subtask] = Field(default_factory=list)
+    progress_percent: int = 0
 
     class Config:
         from_attributes = True
@@ -107,11 +135,29 @@ class ProjectCreate(ProjectBase):
     pass
 
 
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    category_id: Optional[int] = None
+    code: Optional[str] = None
+    status: Optional[str] = None
+    owner_id: Optional[int] = None
+    start_date: Optional[date] = None
+    target_date: Optional[date] = None
+    description: Optional[str] = None
+    inprogress_coeff: Optional[float] = None
+    moq: Optional[float] = None
+    base_price: Optional[float] = None
+    retail_price: Optional[float] = None
+    cover_image: Optional[str] = None
+    media_path: Optional[str] = None
+
+
 class Project(ProjectBase):
     id: int
-    steps: List[Step] = []
-    characteristics: List[ProjectCharacteristic] = []
-    attachments: List[Attachment] = []
+    steps: List[Step] = Field(default_factory=list)
+    characteristics: List[ProjectCharacteristic] = Field(default_factory=list)
+    attachments: List[Attachment] = Field(default_factory=list)
+    progress_percent: int = 0
 
     class Config:
         from_attributes = True
@@ -127,7 +173,7 @@ class CategoryCreate(CategoryBase):
 
 class Category(CategoryBase):
     id: int
-    projects: List[Project] = []
+    projects: List[Project] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

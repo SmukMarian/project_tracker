@@ -19,7 +19,9 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 
 ## API scaffolding (current)
 - Health check endpoint `/health`.
-- CRUD stubs for categories (`/categories`), PM directory (`/pms`), and projects (`/projects`).
+- CRUD for categories (`/categories`), PM directory (`/pms`), and projects (`/projects`).
+- CRUD for steps and subtasks with progress calculation (project and step level) per status/weight rules.
+- CRUD for project characteristics and attachments.
 
 ## Next steps
 1. Add CRUD for steps, subtasks, characteristics, and attachments with progress calculations.
