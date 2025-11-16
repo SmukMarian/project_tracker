@@ -1,4 +1,7 @@
-from fastapi import Depends, FastAPI, HTTPException
+from typing import Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from . import models, schemas
@@ -126,21 +129,73 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     return _apply_progress(project)
 
 
+@app.get("/projects", response_model=list[schemas.Project])
+def list_projects(
+    category_id: Optional[int] = None,
+    owner_id: Optional[int] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = Query(None, description="Search by name, code, or status"),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(models.Project)
+        .options(
+            joinedload(models.Project.steps).joinedload(models.Step.subtasks),
+            joinedload(models.Project.characteristics),
+            joinedload(models.Project.attachments),
+        )
+        .order_by(models.Project.id)
+    )
+
+    if category_id is not None:
+        query = query.filter(models.Project.category_id == category_id)
+    if owner_id is not None:
+        query = query.filter(models.Project.owner_id == owner_id)
+    if status is not None:
+        query = query.filter(models.Project.status == status)
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                models.Project.name.ilike(like),
+                models.Project.code.ilike(like),
+                models.Project.status.ilike(like),
+            )
+        )
+
+    projects = query.all()
+    return [_apply_progress(project) for project in projects]
+
+
 @app.get("/projects/{project_id}/steps", response_model=list[schemas.Step])
-def list_steps(project_id: int, db: Session = Depends(get_db)):
+def list_steps(
+    project_id: int,
+    status: Optional[str] = None,
+    assignee_id: Optional[int] = None,
+    search: Optional[str] = Query(None, description="Search by name or description"),
+    db: Session = Depends(get_db),
+):
     steps = (
         db.query(models.Step)
         .options(joinedload(models.Step.subtasks))
         .filter(models.Step.project_id == project_id)
         .order_by(models.Step.order_index, models.Step.id)
-        .all()
     )
+    if status:
+        steps = steps.filter(models.Step.status == status)
+    if assignee_id:
+        steps = steps.filter(models.Step.assignee_id == assignee_id)
+    if search:
+        like = f"%{search}%"
+        steps = steps.filter(or_(models.Step.name.ilike(like), models.Step.description.ilike(like)))
+
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    for step in steps:
+    step_rows = steps.all()
+    for step in step_rows:
         step.progress_percent = _compute_step_progress(step, project.inprogress_coeff)
-    return steps
+    return step_rows
 
 
 @app.post("/steps", response_model=schemas.Step)
@@ -181,6 +236,25 @@ def delete_step(step_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@app.post("/projects/{project_id}/steps/reorder", response_model=list[schemas.Step])
+def reorder_steps(project_id: int, payload: schemas.OrderUpdate, db: Session = Depends(get_db)):
+    step_ids = payload.ids
+    steps = db.query(models.Step).filter(models.Step.project_id == project_id).all()
+    existing_ids = {step.id for step in steps}
+    if set(step_ids) - existing_ids:
+        raise HTTPException(status_code=400, detail="One or more steps do not belong to the project")
+
+    order_map = {step_id: index for index, step_id in enumerate(step_ids)}
+    for step in steps:
+        if step.id in order_map:
+            step.order_index = order_map[step.id]
+    db.commit()
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    for step in steps:
+        step.progress_percent = _compute_step_progress(step, project.inprogress_coeff)
+    return sorted(steps, key=lambda s: (s.order_index, s.id))
+
+
 @app.post("/subtasks", response_model=schemas.Subtask)
 def create_subtask(subtask: schemas.SubtaskCreate, db: Session = Depends(get_db)):
     step = db.query(models.Step).filter(models.Step.id == subtask.step_id).first()
@@ -214,17 +288,39 @@ def delete_subtask(subtask_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@app.post("/steps/{step_id}/subtasks/reorder", response_model=list[schemas.Subtask])
+def reorder_subtasks(step_id: int, payload: schemas.OrderUpdate, db: Session = Depends(get_db)):
+    subtask_ids = payload.ids
+    subtasks = db.query(models.Subtask).filter(models.Subtask.step_id == step_id).all()
+    existing_ids = {subtask.id for subtask in subtasks}
+    if set(subtask_ids) - existing_ids:
+        raise HTTPException(status_code=400, detail="One or more subtasks do not belong to the step")
+
+    order_map = {subtask_id: index for index, subtask_id in enumerate(subtask_ids)}
+    for subtask in subtasks:
+        if subtask.id in order_map:
+            subtask.order_index = order_map[subtask.id]
+    db.commit()
+    return sorted(subtasks, key=lambda s: (s.order_index, s.id))
+
+
 @app.get("/steps/{step_id}/subtasks", response_model=list[schemas.Subtask])
-def list_subtasks(step_id: int, db: Session = Depends(get_db)):
+def list_subtasks(
+    step_id: int,
+    status: Optional[str] = None,
+    search: Optional[str] = Query(None, description="Search by name"),
+    db: Session = Depends(get_db),
+):
     step = db.query(models.Step).filter(models.Step.id == step_id).first()
     if step is None:
         raise HTTPException(status_code=404, detail="Step not found")
-    return (
-        db.query(models.Subtask)
-        .filter(models.Subtask.step_id == step_id)
-        .order_by(models.Subtask.order_index, models.Subtask.id)
-        .all()
-    )
+    subtasks = db.query(models.Subtask).filter(models.Subtask.step_id == step_id)
+    if status:
+        subtasks = subtasks.filter(models.Subtask.status == status)
+    if search:
+        like = f"%{search}%"
+        subtasks = subtasks.filter(models.Subtask.name.ilike(like))
+    return subtasks.order_by(models.Subtask.order_index, models.Subtask.id).all()
 
 
 @app.get("/projects/{project_id}/characteristics", response_model=list[schemas.ProjectCharacteristic])

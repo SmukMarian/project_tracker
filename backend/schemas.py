@@ -11,6 +11,10 @@ class AttachmentBase(BaseModel):
     step_id: Optional[int] = None
 
 
+class OrderUpdate(BaseModel):
+    ids: list[int] = Field(default_factory=list)
+
+
 class AttachmentCreate(AttachmentBase):
     pass
 
