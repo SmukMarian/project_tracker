@@ -55,6 +55,18 @@ def _apply_progress(project: models.Project) -> models.Project:
     return project
 
 
+def _load_project_with_steps(project_id: int, db: Session) -> models.Project:
+    project = (
+        db.query(models.Project)
+        .options(joinedload(models.Project.steps).joinedload(models.Step.subtasks))
+        .filter(models.Project.id == project_id)
+        .first()
+    )
+    if project:
+        _apply_progress(project)
+    return project
+
+
 @app.post("/categories", response_model=schemas.Category)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
     existing = db.query(models.Category).filter(models.Category.name == category.name).first()
@@ -99,6 +111,30 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     return _apply_progress(db_project)
 
 
+@app.post("/projects/status", response_model=list[schemas.Project])
+def bulk_update_project_status(
+    payload: schemas.BulkProjectStatusUpdate, db: Session = Depends(get_db)
+):
+    projects = (
+        db.query(models.Project)
+        .options(
+            joinedload(models.Project.steps).joinedload(models.Step.subtasks),
+            joinedload(models.Project.characteristics),
+            joinedload(models.Project.attachments),
+        )
+        .filter(models.Project.id.in_(payload.ids))
+        .all()
+    )
+    if not projects:
+        raise HTTPException(status_code=404, detail="No matching projects found")
+    for project in projects:
+        project.status = payload.status.value
+    db.commit()
+    for project in projects:
+        db.refresh(project)
+    return [_apply_progress(project) for project in projects]
+
+
 @app.patch("/projects/{project_id}", response_model=schemas.Project)
 def update_project(project_id: int, update: schemas.ProjectUpdate, db: Session = Depends(get_db)):
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
@@ -133,7 +169,7 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
 def list_projects(
     category_id: Optional[int] = None,
     owner_id: Optional[int] = None,
-    status: Optional[str] = None,
+    status: Optional[schemas.ProjectStatus] = None,
     search: Optional[str] = Query(None, description="Search by name, code, or status"),
     db: Session = Depends(get_db),
 ):
@@ -152,7 +188,7 @@ def list_projects(
     if owner_id is not None:
         query = query.filter(models.Project.owner_id == owner_id)
     if status is not None:
-        query = query.filter(models.Project.status == status)
+        query = query.filter(models.Project.status == status.value)
     if search:
         like = f"%{search}%"
         query = query.filter(
@@ -167,10 +203,20 @@ def list_projects(
     return [_apply_progress(project) for project in projects]
 
 
+@app.post("/projects/bulk-delete", status_code=204)
+def bulk_delete_projects(payload: schemas.BulkDeleteRequest, db: Session = Depends(get_db)):
+    projects = db.query(models.Project).filter(models.Project.id.in_(payload.ids)).all()
+    if not projects:
+        raise HTTPException(status_code=404, detail="No matching projects found")
+    for project in projects:
+        db.delete(project)
+    db.commit()
+
+
 @app.get("/projects/{project_id}/steps", response_model=list[schemas.Step])
 def list_steps(
     project_id: int,
-    status: Optional[str] = None,
+    status: Optional[schemas.TaskStatus] = None,
     assignee_id: Optional[int] = None,
     search: Optional[str] = Query(None, description="Search by name or description"),
     db: Session = Depends(get_db),
@@ -182,7 +228,7 @@ def list_steps(
         .order_by(models.Step.order_index, models.Step.id)
     )
     if status:
-        steps = steps.filter(models.Step.status == status)
+        steps = steps.filter(models.Step.status == status.value)
     if assignee_id:
         steps = steps.filter(models.Step.assignee_id == assignee_id)
     if search:
@@ -233,6 +279,16 @@ def delete_step(step_id: int, db: Session = Depends(get_db)):
     if step is None:
         raise HTTPException(status_code=404, detail="Step not found")
     db.delete(step)
+    db.commit()
+
+
+@app.post("/steps/bulk-delete", status_code=204)
+def bulk_delete_steps(payload: schemas.BulkDeleteRequest, db: Session = Depends(get_db)):
+    steps = db.query(models.Step).filter(models.Step.id.in_(payload.ids)).all()
+    if not steps:
+        raise HTTPException(status_code=404, detail="No matching steps found")
+    for step in steps:
+        db.delete(step)
     db.commit()
 
 
@@ -288,6 +344,16 @@ def delete_subtask(subtask_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@app.post("/subtasks/bulk-delete", status_code=204)
+def bulk_delete_subtasks(payload: schemas.BulkDeleteRequest, db: Session = Depends(get_db)):
+    subtasks = db.query(models.Subtask).filter(models.Subtask.id.in_(payload.ids)).all()
+    if not subtasks:
+        raise HTTPException(status_code=404, detail="No matching subtasks found")
+    for subtask in subtasks:
+        db.delete(subtask)
+    db.commit()
+
+
 @app.post("/steps/{step_id}/subtasks/reorder", response_model=list[schemas.Subtask])
 def reorder_subtasks(step_id: int, payload: schemas.OrderUpdate, db: Session = Depends(get_db)):
     subtask_ids = payload.ids
@@ -307,7 +373,7 @@ def reorder_subtasks(step_id: int, payload: schemas.OrderUpdate, db: Session = D
 @app.get("/steps/{step_id}/subtasks", response_model=list[schemas.Subtask])
 def list_subtasks(
     step_id: int,
-    status: Optional[str] = None,
+    status: Optional[schemas.TaskStatus] = None,
     search: Optional[str] = Query(None, description="Search by name"),
     db: Session = Depends(get_db),
 ):
@@ -316,7 +382,7 @@ def list_subtasks(
         raise HTTPException(status_code=404, detail="Step not found")
     subtasks = db.query(models.Subtask).filter(models.Subtask.step_id == step_id)
     if status:
-        subtasks = subtasks.filter(models.Subtask.status == status)
+        subtasks = subtasks.filter(models.Subtask.status == status.value)
     if search:
         like = f"%{search}%"
         subtasks = subtasks.filter(models.Subtask.name.ilike(like))

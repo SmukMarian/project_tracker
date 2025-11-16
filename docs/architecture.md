@@ -20,6 +20,8 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 ## API scaffolding (current)
 - Health check endpoint `/health`.
 - CRUD for categories (`/categories`), PM directory (`/pms`), and projects (`/projects`).
+- Project status enum `active`/`archived` and task status enum `todo`/`in_progress`/`blocked`/`done` enforced in payloads.
+- Bulk helpers for deleting projects/steps/subtasks and batch status update for projects (`/projects/status`).
 - Filtering/search for projects (by category, owner, status, and free-text), steps (by status/assignee/search), and subtasks (by status/search).
 - Reordering operations for steps and subtasks via order indices.
 - CRUD for steps and subtasks with progress calculation (project and step level) per status/weight rules.

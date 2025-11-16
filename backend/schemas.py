@@ -1,7 +1,20 @@
 from datetime import date
+from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+
+
+class TaskStatus(str, Enum):
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    BLOCKED = "blocked"
+    DONE = "done"
+
+
+class ProjectStatus(str, Enum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
 
 
 class AttachmentBase(BaseModel):
@@ -50,7 +63,7 @@ class ProjectCharacteristic(ProjectCharacteristicBase):
 
 class SubtaskBase(BaseModel):
     name: str
-    status: str = "todo"
+    status: TaskStatus = TaskStatus.TODO
     weight: float = 1.0
     target_date: Optional[date] = None
     completed_date: Optional[date] = None
@@ -63,7 +76,7 @@ class SubtaskCreate(SubtaskBase):
 
 class SubtaskUpdate(BaseModel):
     name: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[TaskStatus] = None
     weight: Optional[float] = None
     target_date: Optional[date] = None
     completed_date: Optional[date] = None
@@ -81,7 +94,7 @@ class Subtask(SubtaskBase):
 class StepBase(BaseModel):
     name: str
     description: Optional[str] = None
-    status: str = "todo"
+    status: TaskStatus = TaskStatus.TODO
     assignee_id: Optional[int] = None
     start_date: Optional[date] = None
     target_date: Optional[date] = None
@@ -98,7 +111,7 @@ class StepCreate(StepBase):
 class StepUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[TaskStatus] = None
     assignee_id: Optional[int] = None
     start_date: Optional[date] = None
     target_date: Optional[date] = None
@@ -122,12 +135,12 @@ class ProjectBase(BaseModel):
     name: str
     category_id: int
     code: Optional[str] = None
-    status: str = "Active"
+    status: ProjectStatus = ProjectStatus.ACTIVE
     owner_id: Optional[int] = None
     start_date: Optional[date] = None
     target_date: Optional[date] = None
     description: Optional[str] = None
-    inprogress_coeff: float = 0.5
+    inprogress_coeff: float = Field(default=0.5, ge=0.0, le=1.0)
     moq: Optional[float] = None
     base_price: Optional[float] = None
     retail_price: Optional[float] = None
@@ -143,12 +156,12 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     category_id: Optional[int] = None
     code: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[ProjectStatus] = None
     owner_id: Optional[int] = None
     start_date: Optional[date] = None
     target_date: Optional[date] = None
     description: Optional[str] = None
-    inprogress_coeff: Optional[float] = None
+    inprogress_coeff: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     moq: Optional[float] = None
     base_price: Optional[float] = None
     retail_price: Optional[float] = None
@@ -196,3 +209,18 @@ class PM(PMBase):
 
     class Config:
         from_attributes = True
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: List[int] = Field(..., min_length=1, description="IDs to delete")
+
+
+class BulkProjectStatusUpdate(BaseModel):
+    ids: List[int] = Field(..., min_length=1, description="Project IDs to update")
+    status: ProjectStatus
+
+    @validator("status")
+    def disallow_empty_status(cls, value: ProjectStatus) -> ProjectStatus:
+        if value is None:
+            raise ValueError("Status is required")
+        return value

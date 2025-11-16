@@ -30,7 +30,7 @@ class Project(Base):
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     name = Column(String, nullable=False)
     code = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="Active")
+    status = Column(String, nullable=False, default="active")
     owner_id = Column(Integer, ForeignKey("pms.id"), nullable=True)
     start_date = Column(Date, nullable=True)
     target_date = Column(Date, nullable=True)
