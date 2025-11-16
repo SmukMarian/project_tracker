@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { PM, Project, Step, Subtask } from '../types';
+import { fetchSteps } from '../api';
+import { PM, Project, Step, Status, Subtask } from '../types';
 
 interface Props {
   project: Project;
@@ -16,16 +17,69 @@ const statusLabel: Record<Step['status'], string> = {
 const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [stepName, setStepName] = useState('');
   const [subtaskSearch, setSubtaskSearch] = useState('');
-  const [selectedStepId, setSelectedStepId] = useState<number | null>(
-    project.steps.length ? project.steps[0].id : null
-  );
+  const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'subtasks' | 'details'>('subtasks');
+  const [steps, setSteps] = useState<Step[]>(project.steps);
+  const [stepStatusFilter, setStepStatusFilter] = useState<Status | 'all'>('all');
+  const [stepAssigneeFilter, setStepAssigneeFilter] = useState<number | 'all'>('all');
+  const [stepSearch, setStepSearch] = useState('');
+  const [loadingSteps, setLoadingSteps] = useState(false);
+  const [stepError, setStepError] = useState<string | null>(null);
 
   useEffect(() => {
+    setSteps(project.steps);
     setSelectedStepId(project.steps[0]?.id ?? null);
+    setSubtaskSearch('');
+    setStepError(null);
   }, [project.id, project.steps]);
 
-  const selectedStep = project.steps.find((s) => s.id === selectedStepId) ?? null;
+  useEffect(() => {
+    if (!steps.length) {
+      setSelectedStepId(null);
+      return;
+    }
+    const hasCurrent = steps.some((s) => s.id === selectedStepId);
+    if (!hasCurrent) {
+      setSelectedStepId(steps[0].id);
+    }
+  }, [steps, selectedStepId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSteps = async () => {
+      setLoadingSteps(true);
+      try {
+        const fetched = await fetchSteps(project.id, {
+          status: stepStatusFilter === 'all' ? undefined : stepStatusFilter,
+          assignee_id: stepAssigneeFilter === 'all' ? undefined : stepAssigneeFilter,
+          search: stepSearch || undefined
+        });
+        if (!isMounted) return;
+        setSteps(fetched.length ? fetched : project.steps);
+        if (!fetched.length) {
+          setStepError('Нет данных от API, показаны локальные шаги.');
+        } else {
+          setStepError(null);
+        }
+        if (!selectedStepId && fetched.length) {
+          setSelectedStepId(fetched[0].id);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setStepError('API шагов недоступно, показаны локальные данные.');
+        setSteps(project.steps);
+      } finally {
+        if (!isMounted) return;
+        setLoadingSteps(false);
+      }
+    };
+    loadSteps();
+    return () => {
+      isMounted = false;
+    };
+  }, [project.id, project.steps, stepAssigneeFilter, stepSearch, stepStatusFilter]);
+
+  const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null;
 
   const filteredSubtasks = useMemo(() => {
     if (!selectedStep) return [];
@@ -57,7 +111,41 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         <button className="menu-button" disabled={!selectedStepId}>
           Удалить выбранное
         </button>
+        <input
+          className="input"
+          placeholder="Поиск по шагам…"
+          value={stepSearch}
+          onChange={(e) => setStepSearch(e.target.value)}
+        />
+        <select
+          className="input select"
+          value={stepStatusFilter}
+          onChange={(e) => setStepStatusFilter(e.target.value as Status | 'all')}
+        >
+          <option value="all">Все статусы</option>
+          <option value="todo">Не начато</option>
+          <option value="in_progress">В работе</option>
+          <option value="blocked">Заблокировано</option>
+          <option value="done">Завершено</option>
+        </select>
+        <select
+          className="input select"
+          value={stepAssigneeFilter}
+          onChange={(e) =>
+            setStepAssigneeFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+          }
+        >
+          <option value="all">Все исполнители</option>
+          {pmDirectory.map((pm) => (
+            <option key={pm.id} value={pm.id}>
+              {pm.name}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {loadingSteps && <div className="info">Загрузка шагов…</div>}
+      {stepError && <div className="info warning">{stepError}</div>}
 
       <div className="tabs">
         <button
@@ -145,7 +233,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
           <span>Комментарий</span>
         </div>
         <div className="step-table-body">
-          {project.steps
+          {steps
             .slice()
             .sort((a, b) => a.order_index - b.order_index)
             .map((step: Step) => (

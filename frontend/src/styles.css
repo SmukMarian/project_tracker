@@ -95,6 +95,11 @@ body {
   font-size: 14px;
 }
 
+.select {
+  flex: 0 0 auto;
+  min-width: 160px;
+}
+
 .small-button {
   padding: 8px 10px;
   border: 1px solid var(--border);

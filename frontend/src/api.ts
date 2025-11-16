@@ -1,4 +1,4 @@
-import { Category, PM, Project, Step, WorkspaceState } from './types';
+import { Category, PM, Project, Step, Subtask, WorkspaceState } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -51,4 +51,17 @@ export async function fetchSteps(
     ? `/projects/${projectId}/steps?${params.toString()}`
     : `/projects/${projectId}/steps`;
   return getJson<Step[]>(suffix);
+}
+
+export async function fetchSubtasks(
+  stepId: number,
+  query: { status?: string; search?: string } = {}
+): Promise<Subtask[]> {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.search) params.set('search', query.search);
+  const suffix = params.toString()
+    ? `/steps/${stepId}/subtasks?${params.toString()}`
+    : `/steps/${stepId}/subtasks`;
+  return getJson<Subtask[]>(suffix);
 }
