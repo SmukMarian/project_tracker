@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchCategories, fetchPMs, fetchProjects, fetchWorkspace } from './api';
+import { fetchCategories, fetchPMs, fetchProjects, fetchWorkspace, setWorkspace } from './api';
 import LeftPanel from './components/LeftPanel';
+import PmDirectory from './components/PmDirectory';
 import ProjectCard from './components/ProjectCard';
 import StepsPanel from './components/StepsPanel';
 import TopMenu from './components/TopMenu';
@@ -24,6 +25,8 @@ const App: React.FC = () => {
   const [pmDirectory, setPmDirectory] = useState(seedPMs);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [showPmDirectory, setShowPmDirectory] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -42,6 +45,7 @@ const App: React.FC = () => {
         setCategories(fetchedCategories.length ? fetchedCategories : seedCategories);
         setProjects(fetchedProjects.length ? fetchedProjects : seedProjects);
         setError(null);
+        setInfo(null);
       } catch (err) {
         if (!isMounted) return;
         setError('API недоступно, показаны мок-данные.');
@@ -115,12 +119,32 @@ const App: React.FC = () => {
     setSelectedProjectId(projectId);
   };
 
+  const handleWorkspace = async () => {
+    const path = window.prompt('Введите путь к workspace', workspacePath);
+    if (!path) return;
+    try {
+      const updated = await setWorkspace(path);
+      setWorkspacePath(updated.path);
+      setInfo('Workspace обновлён.');
+      setError(null);
+    } catch (err) {
+      setError('Не удалось сохранить workspace.');
+    }
+  };
+
+  const handleExportCategories = () => {
+    window.open('http://localhost:8000/export/categories/excel', '_blank');
+  };
+
   return (
     <div className="app">
       <TopMenu
         onToggleSidebar={() => setCollapsed((v) => !v)}
         onNewCategory={() => alert('Диалог создания категории (заглушка).')}
         onNewProject={() => alert('Диалог создания проекта (заглушка).')}
+        onWorkspace={handleWorkspace}
+        onExportCategories={handleExportCategories}
+        onOpenPmDirectory={() => setShowPmDirectory(true)}
       />
 
       <div className="layout">
@@ -141,6 +165,7 @@ const App: React.FC = () => {
 
         <main className="main">
           {loading && <div className="info">Загрузка данных…</div>}
+          {info && <div className="info success">{info}</div>}
           {error && <div className="info warning">{error}</div>}
           {selectedProject ? (
             <>
@@ -152,6 +177,9 @@ const App: React.FC = () => {
           )}
         </main>
       </div>
+      {showPmDirectory && (
+        <PmDirectory pms={pmDirectory} onClose={() => setShowPmDirectory(false)} />
+      )}
     </div>
   );
 };

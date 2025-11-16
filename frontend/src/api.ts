@@ -14,6 +14,18 @@ export async function fetchWorkspace(): Promise<WorkspaceState> {
   return getJson<WorkspaceState>('/workspace');
 }
 
+export async function setWorkspace(path: string): Promise<WorkspaceState> {
+  const res = await fetch(`${API_BASE}/workspace`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  });
+  if (!res.ok) {
+    throw new Error('Failed to update workspace');
+  }
+  return (await res.json()) as WorkspaceState;
+}
+
 export async function fetchPMs(): Promise<PM[]> {
   return getJson<PM[]>('/pms');
 }

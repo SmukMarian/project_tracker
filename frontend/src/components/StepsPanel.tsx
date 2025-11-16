@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchSteps } from '../api';
+import { fetchSteps, fetchSubtasks } from '../api';
 import { PM, Project, Step, Status, Subtask } from '../types';
 
 interface Props {
@@ -17,6 +17,7 @@ const statusLabel: Record<Step['status'], string> = {
 const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [stepName, setStepName] = useState('');
   const [subtaskSearch, setSubtaskSearch] = useState('');
+  const [subtaskStatusFilter, setSubtaskStatusFilter] = useState<Status | 'all'>('all');
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'subtasks' | 'details'>('subtasks');
   const [steps, setSteps] = useState<Step[]>(project.steps);
@@ -25,12 +26,17 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [stepSearch, setStepSearch] = useState('');
   const [loadingSteps, setLoadingSteps] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+  const [subtaskError, setSubtaskError] = useState<string | null>(null);
+  const [subtasks, setSubtasks] = useState<Subtask[]>(project.steps[0]?.subtasks ?? []);
 
   useEffect(() => {
     setSteps(project.steps);
     setSelectedStepId(project.steps[0]?.id ?? null);
     setSubtaskSearch('');
+    setSubtaskStatusFilter('all');
     setStepError(null);
+    setSubtaskError(null);
   }, [project.id, project.steps]);
 
   useEffect(() => {
@@ -81,12 +87,47 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
 
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null;
 
+  useEffect(() => {
+    if (!selectedStepId || !selectedStep) {
+      setSubtasks([]);
+      return;
+    }
+    let isMounted = true;
+    const loadSubtasks = async () => {
+      setLoadingSubtasks(true);
+      try {
+        const fetched = await fetchSubtasks(selectedStepId, {
+          status: subtaskStatusFilter === 'all' ? undefined : subtaskStatusFilter,
+          search: subtaskSearch || undefined
+        });
+        if (!isMounted) return;
+        if (fetched.length) {
+          setSubtasks(fetched);
+          setSubtaskError(null);
+        } else {
+          setSubtasks(selectedStep.subtasks);
+          setSubtaskError('Нет данных от API, показаны локальные подзадачи.');
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setSubtasks(selectedStep.subtasks);
+        setSubtaskError('API подзадач недоступно, показаны локальные данные.');
+      } finally {
+        if (!isMounted) return;
+        setLoadingSubtasks(false);
+      }
+    };
+    loadSubtasks();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedStepId, selectedStep, subtaskSearch, subtaskStatusFilter]);
+
   const filteredSubtasks = useMemo(() => {
-    if (!selectedStep) return [];
-    return selectedStep.subtasks.filter((st) =>
+    return subtasks.filter((st) =>
       st.name.toLowerCase().includes(subtaskSearch.toLowerCase())
     );
-  }, [selectedStep, subtaskSearch]);
+  }, [subtasks, subtaskSearch]);
 
   const pmName = (id?: number) => pmDirectory.find((pm) => pm.id === id)?.name ?? '—';
 
@@ -179,7 +220,20 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
               value={subtaskSearch}
               onChange={(e) => setSubtaskSearch(e.target.value)}
             />
+            <select
+              className="input select"
+              value={subtaskStatusFilter}
+              onChange={(e) => setSubtaskStatusFilter(e.target.value as Status | 'all')}
+            >
+              <option value="all">Все статусы</option>
+              <option value="todo">Не начато</option>
+              <option value="in_progress">В работе</option>
+              <option value="blocked">Заблокировано</option>
+              <option value="done">Завершено</option>
+            </select>
           </div>
+          {loadingSubtasks && <div className="info">Загрузка подзадач…</div>}
+          {subtaskError && <div className="info warning">{subtaskError}</div>}
           <div className="subtask-table">
             <div className="subtask-head">
               <span>ID</span>
