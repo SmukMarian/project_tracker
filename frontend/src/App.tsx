@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchCategories, fetchPMs, fetchWorkspace } from './api';
+import { fetchCategories, fetchPMs, fetchProjects, fetchWorkspace } from './api';
 import LeftPanel from './components/LeftPanel';
 import ProjectCard from './components/ProjectCard';
 import StepsPanel from './components/StepsPanel';
 import TopMenu from './components/TopMenu';
 import { categories as seedCategories, pms as seedPMs } from './data';
-import { Project } from './types';
+import { Category, Project } from './types';
 
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -14,7 +14,13 @@ const App: React.FC = () => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [workspacePath, setWorkspacePath] = useState('');
+  const seedProjects = useMemo(
+    () => seedCategories.flatMap((c) => c.projects.map((p) => ({ ...p, category_id: c.id }))),
+    []
+  );
+
   const [categories, setCategories] = useState<Category[]>(seedCategories);
+  const [projects, setProjects] = useState<Project[]>(seedProjects);
   const [pmDirectory, setPmDirectory] = useState(seedPMs);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,21 +30,24 @@ const App: React.FC = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const [workspace, pms, fetchedCategories] = await Promise.all([
+        const [workspace, pms, fetchedCategories, fetchedProjects] = await Promise.all([
           fetchWorkspace(),
           fetchPMs(),
-          fetchCategories()
+          fetchCategories(),
+          fetchProjects({})
         ]);
         if (!isMounted) return;
         setWorkspacePath(workspace?.path ?? '');
         setPmDirectory(pms.length ? pms : seedPMs);
         setCategories(fetchedCategories.length ? fetchedCategories : seedCategories);
+        setProjects(fetchedProjects.length ? fetchedProjects : seedProjects);
         setError(null);
       } catch (err) {
         if (!isMounted) return;
         setError('API недоступно, показаны мок-данные.');
         setPmDirectory(seedPMs);
         setCategories(seedCategories);
+        setProjects(seedProjects);
       } finally {
         if (!isMounted) return;
         setLoading(false);
@@ -51,19 +60,55 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!categories.length) return;
-    const firstCategory = categories[0];
-    const firstProject = firstCategory.projects[0];
-    setSelectedCategoryId((prev) => (prev !== null ? prev : firstCategory.id));
-    if (firstProject) {
-      setSelectedProjectId((prev) => (prev !== null ? prev : firstProject.id));
+    if (error) return;
+    let isMounted = true;
+    const loadProjects = async () => {
+      try {
+        const fetched = await fetchProjects({
+          category_id: selectedCategoryId ?? undefined,
+          search: projectFilter || undefined
+        });
+        if (!isMounted) return;
+        setProjects(fetched.length ? fetched : seedProjects);
+      } catch (err) {
+        if (!isMounted) return;
+        setError('API недоступно, показаны мок-данные.');
+        setProjects(seedProjects);
+      }
+    };
+    loadProjects();
+    return () => {
+      isMounted = false;
+    };
+  }, [error, projectFilter, selectedCategoryId, seedProjects]);
+
+  const categoriesWithProjects = useMemo(() => {
+    return categories.map((category) => ({
+      ...category,
+      projects: projects.filter((project) => project.category_id === category.id)
+    }));
+  }, [categories, projects]);
+
+  useEffect(() => {
+    if (!categoriesWithProjects.length) return;
+    const firstCategory = categoriesWithProjects[0];
+    const currentCategory = categoriesWithProjects.find((c) => c.id === selectedCategoryId);
+    const categoryToUse = currentCategory ?? firstCategory;
+    if (selectedCategoryId === null || categoryToUse.id !== selectedCategoryId) {
+      setSelectedCategoryId(categoryToUse.id);
     }
-  }, [categories]);
+
+    const firstProject = categoryToUse.projects[0];
+    const hasCurrentProject = categoryToUse.projects.some((p) => p.id === selectedProjectId);
+    if (!hasCurrentProject) {
+      setSelectedProjectId(firstProject ? firstProject.id : null);
+    }
+  }, [categoriesWithProjects, selectedCategoryId, selectedProjectId]);
 
   const selectedProject: Project | null = useMemo(() => {
-    const category = categories.find((c) => c.id === selectedCategoryId);
+    const category = categoriesWithProjects.find((c) => c.id === selectedCategoryId);
     return category?.projects.find((p) => p.id === selectedProjectId) ?? null;
-  }, [categories, selectedCategoryId, selectedProjectId]);
+  }, [categoriesWithProjects, selectedCategoryId, selectedProjectId]);
 
   const handleSelectProject = (categoryId: number, projectId: number) => {
     setSelectedCategoryId(categoryId);
@@ -81,7 +126,7 @@ const App: React.FC = () => {
       <div className="layout">
         {!collapsed && (
           <LeftPanel
-            categories={categories}
+            categories={categoriesWithProjects}
             selectedCategoryId={selectedCategoryId}
             selectedProjectId={selectedProjectId}
             onSelectCategory={setSelectedCategoryId}

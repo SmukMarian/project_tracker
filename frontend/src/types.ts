@@ -39,6 +39,7 @@ export interface Project {
   name: string;
   code?: string;
   status: ProjectStatus;
+  category_id?: number;
   owner_id?: number;
   start_date?: string;
   target_date?: string;
