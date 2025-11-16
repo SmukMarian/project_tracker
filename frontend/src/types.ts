@@ -1,5 +1,7 @@
 export type Status = 'todo' | 'in_progress' | 'blocked' | 'done';
 
+export type ProjectStatus = 'active' | 'archived';
+
 export interface PM {
   id: number;
   name: string;
@@ -9,10 +11,10 @@ export interface Subtask {
   id: number;
   name: string;
   status: Status;
-  assignee?: number;
-  targetDate?: string;
+  assignee_id?: number;
+  target_date?: string;
   weight: number;
-  orderIndex: number;
+  order_index: number;
   comment?: string;
 }
 
@@ -21,38 +23,42 @@ export interface Step {
   name: string;
   description?: string;
   status: Status;
-  assignee?: number;
-  startDate?: string;
-  dueDate?: string;
-  completedDate?: string;
+  assignee_id?: number;
+  start_date?: string;
+  target_date?: string;
+  completed_date?: string;
   weight?: number;
-  orderIndex: number;
+  order_index: number;
   comments?: string;
   subtasks: Subtask[];
-  progress: number;
+  progress_percent: number;
 }
 
 export interface Project {
   id: number;
   name: string;
   code?: string;
-  status: 'Active' | 'Archived';
-  owner?: number;
-  startDate?: string;
-  targetDate?: string;
+  status: ProjectStatus;
+  owner_id?: number;
+  start_date?: string;
+  target_date?: string;
   description?: string;
   moq?: number;
-  basePrice?: number;
-  retailPrice?: number;
-  progress: number;
-  coverUrl?: string;
-  mediaFolder?: string;
+  base_price?: number;
+  retail_price?: number;
+  progress_percent: number;
+  cover_image?: string;
+  media_path?: string;
   steps: Step[];
-  inProgressCoeff?: number;
+  inprogress_coeff?: number;
 }
 
 export interface Category {
   id: number;
   name: string;
   projects: Project[];
+}
+
+export interface WorkspaceState {
+  path: string;
 }

@@ -510,6 +510,20 @@ body {
   color: var(--muted);
 }
 
+.info {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: #f5f7fb;
+  border: 1px solid #d5deed;
+  color: var(--text-primary);
+  border-radius: 6px;
+}
+
+.info.warning {
+  background: #fff7e6;
+  border-color: #ffd591;
+}
+
 .subtask-row.status-done {
   background: #f2fbf6;
 }

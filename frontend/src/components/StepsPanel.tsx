@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PM, Project, Step, Subtask } from '../types';
 
 interface Props {
@@ -20,6 +20,10 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
     project.steps.length ? project.steps[0].id : null
   );
   const [activeTab, setActiveTab] = useState<'subtasks' | 'details'>('subtasks');
+
+  useEffect(() => {
+    setSelectedStepId(project.steps[0]?.id ?? null);
+  }, [project.id, project.steps]);
 
   const selectedStep = project.steps.find((s) => s.id === selectedStepId) ?? null;
 
@@ -106,8 +110,8 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
                     {st.name}
                   </span>
                   <span className={`status ${st.status}`}>{statusLabel[st.status]}</span>
-                  <span>{pmName(st.assignee)}</span>
-                  <span>{st.targetDate ?? '—'}</span>
+                  <span>{pmName(st.assignee_id)}</span>
+                  <span>{st.target_date ?? '—'}</span>
                   <span>{st.weight}</span>
                   <span className="ellipsis" title={st.comment}>
                     {st.comment || '—'}
@@ -143,7 +147,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         <div className="step-table-body">
           {project.steps
             .slice()
-            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .sort((a, b) => a.order_index - b.order_index)
             .map((step: Step) => (
               <div
                 key={step.id}
@@ -158,10 +162,10 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
                   {step.description || '—'}
                 </span>
                 <span className={`status ${step.status}`}>{statusLabel[step.status]}</span>
-                <span>{pmName(step.assignee)}</span>
-                <span>{step.startDate ?? '—'}</span>
-                <span>{step.dueDate ?? '—'}</span>
-                <span>{step.completedDate ?? '—'}</span>
+                <span>{pmName(step.assignee_id)}</span>
+                <span>{step.start_date ?? '—'}</span>
+                <span>{step.target_date ?? '—'}</span>
+                <span>{step.completed_date ?? '—'}</span>
                 <span>{step.weight ?? 1}</span>
                 <span className="ellipsis" title={step.comments}>
                   {step.comments || '—'}

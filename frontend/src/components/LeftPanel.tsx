@@ -100,9 +100,9 @@ const LeftPanel: React.FC<Props> = ({
                   </span>
                   <span>{p.code}</span>
                   <span className={`status ${p.status.toLowerCase()}`}>{p.status}</span>
-                  <span>{p.startDate ?? '—'}</span>
-                  <span>{p.targetDate ?? '—'}</span>
-                  <span>{p.progress}%</span>
+                  <span>{p.start_date ?? '—'}</span>
+                  <span>{p.target_date ?? '—'}</span>
+                  <span>{p.progress_percent}%</span>
                 </div>
               ))}
           </div>
