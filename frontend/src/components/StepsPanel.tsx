@@ -316,8 +316,10 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
           step_id: selectedStep.id,
           name: title,
           status: 'todo',
+          assignee_id: undefined,
           order_index: subtasks.length + 1,
-          weight: 1
+          weight: 1,
+          comment: ''
         });
         setSubtasks((prev) => prev.map((st) => (st.id === tempId ? { ...st, ...created } : st)));
         setActionTone('info');

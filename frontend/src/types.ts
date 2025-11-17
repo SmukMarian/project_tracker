@@ -52,6 +52,7 @@ export interface Project {
   media_path?: string;
   steps: Step[];
   inprogress_coeff?: number;
+  attachments?: Attachment[];
 }
 
 export interface Attachment {

@@ -19,6 +19,8 @@ interface Props {
     base_price?: number;
     retail_price?: number;
     inprogress_coeff?: number;
+    coverFile?: File | null;
+    attachments?: File[];
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
@@ -47,6 +49,9 @@ const ProjectDialog: React.FC<Props> = ({
     retail_price: initial?.retail_price?.toString() ?? '',
     inprogress_coeff: initial?.inprogress_coeff?.toString() ?? ''
   });
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(initial?.cover_image ?? null);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +85,9 @@ const ProjectDialog: React.FC<Props> = ({
         moq: form.moq ? Number(form.moq) : undefined,
         base_price: form.base_price ? Number(form.base_price) : undefined,
         retail_price: form.retail_price ? Number(form.retail_price) : undefined,
-        inprogress_coeff: form.inprogress_coeff ? Number(form.inprogress_coeff) : undefined
+        inprogress_coeff: form.inprogress_coeff ? Number(form.inprogress_coeff) : undefined,
+        coverFile,
+        attachments
       });
       onClose();
     } catch (err) {
@@ -183,6 +190,43 @@ const ProjectDialog: React.FC<Props> = ({
               value={form.inprogress_coeff}
               onChange={(e) => handleChange('inprogress_coeff', e.target.value)}
             />
+          </label>
+          <label>
+            Обложка
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                setCoverFile(file);
+                if (file) {
+                  setCoverPreview(URL.createObjectURL(file));
+                }
+              }}
+            />
+            {coverPreview && (
+              <div className="cover-preview">
+                <img src={coverPreview} alt="Превью обложки" />
+              </div>
+            )}
+          </label>
+          <label className="span-2">
+            Вложения
+            <input
+              type="file"
+              multiple
+              onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                setAttachments(files);
+              }}
+            />
+            {attachments.length > 0 && (
+              <ul className="attachment-preview">
+                {attachments.map((file) => (
+                  <li key={file.name}>{file.name}</li>
+                ))}
+              </ul>
+            )}
           </label>
           {error && <div className="info warning span-2">{error}</div>}
           <div className="modal-actions span-2">

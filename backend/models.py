@@ -80,10 +80,12 @@ class Subtask(Base):
     step_id = Column(Integer, ForeignKey("steps.id"), nullable=False)
     name = Column(String, nullable=False)
     status = Column(String, nullable=False, default="todo")
+    assignee_id = Column(Integer, ForeignKey("pms.id"), nullable=True)
     weight = Column(Float, nullable=False, default=1.0)
     target_date = Column(Date, nullable=True)
     completed_date = Column(Date, nullable=True)
     order_index = Column(Integer, nullable=False, default=0)
+    comment = Column(Text, nullable=True)
 
     step = relationship("Step", back_populates="subtasks")
 

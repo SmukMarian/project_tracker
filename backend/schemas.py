@@ -68,10 +68,12 @@ class ProjectCharacteristicImport(BaseModel):
 class SubtaskBase(BaseModel):
     name: str
     status: TaskStatus = TaskStatus.TODO
+    assignee_id: Optional[int] = None
     weight: float = 1.0
     target_date: Optional[date] = None
     completed_date: Optional[date] = None
     order_index: int = 0
+    comment: Optional[str] = None
 
 
 class SubtaskCreate(SubtaskBase):
@@ -81,10 +83,12 @@ class SubtaskCreate(SubtaskBase):
 class SubtaskUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[TaskStatus] = None
+    assignee_id: Optional[int] = None
     weight: Optional[float] = None
     target_date: Optional[date] = None
     completed_date: Optional[date] = None
     order_index: Optional[int] = None
+    comment: Optional[str] = None
 
 
 class Subtask(SubtaskBase):

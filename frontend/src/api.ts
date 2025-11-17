@@ -95,6 +95,8 @@ export interface ProjectPayload {
   base_price?: number;
   retail_price?: number;
   inprogress_coeff?: number;
+  cover_image?: string;
+  media_path?: string;
 }
 
 export async function fetchProjects(query: ProjectQuery = {}): Promise<Project[]> {
@@ -214,10 +216,12 @@ export interface SubtaskCreatePayload {
   step_id: number;
   name: string;
   status?: string;
+  assignee_id?: number;
   target_date?: string;
   completed_date?: string;
   order_index?: number;
   weight?: number;
+  comment?: string;
 }
 
 export async function createSubtask(payload: SubtaskCreatePayload): Promise<Subtask> {
@@ -271,6 +275,19 @@ export async function deleteAttachment(attachmentId: number): Promise<void> {
   if (!res.ok) {
     throw new Error('Failed to delete attachment');
   }
+}
+
+export async function uploadProjectCover(projectId: number, file: File): Promise<Project> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/projects/${projectId}/cover`, {
+    method: 'POST',
+    body: form
+  });
+  if (!res.ok) {
+    throw new Error('Failed to upload cover');
+  }
+  return (await res.json()) as Project;
 }
 
 export async function fetchKpi(categoryId?: number): Promise<KpiReport> {
