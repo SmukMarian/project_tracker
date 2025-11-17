@@ -44,9 +44,15 @@ SPA пытается загрузить данные с API (`VITE_API_BASE`, п
 3. Выполните `python packaging/build_installer.py --version 0.1.0 --with-nsis` из корня репозитория.
    - В `dist/` появится `haier-project-tracker.exe`; при наличии `makensis` — `HaierProjectTracker-Setup-<версия>.exe` по скрипту `packaging/installer.nsi`.
 
+## Смоук-тест обновлений
+- Запустите backend (`uvicorn backend.app:app --reload`) и убедитесь, что workspace выбран.
+- Проверьте раздачу манифеста и пакета одной командой:
+  - `python packaging/test_update_flow.py --manifest-url http://127.0.0.1:8000/updates/manifest --expected-version 0.1.0`
+- Скрипт валидирует JSON-манифест, при необходимости предупреждает о некорректном `Content-Type`, сравнивает ожидаемую версию и скачивает файл из `download_url`, проверяя, что размер не нулевой.
+
 ## Структура
 - `backend/` — FastAPI + SQLAlchemy схема данных, базовые endpoint'ы и расчёт прогресса.
 - `docs/` — архитектурные заметки по проекту.
 
 ## Что дальше
-- Прогнать end-to-end тесты установки/обновления с использованием новых endpoint'ов хостинга манифеста и пакетов.
+- Прогонять смоук-тест обновления (`packaging/test_update_flow.py`) на собранном инсталляторе, чтобы подтвердить раздачу манифеста и пакета.
