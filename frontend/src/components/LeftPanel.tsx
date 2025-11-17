@@ -1,6 +1,6 @@
 import React from 'react';
 import { parseTokens } from '../search';
-import { CategoryWithProjects, ProjectListItem } from '../types';
+import { Category, CategoryWithProjects, Project, ProjectListItem } from '../types';
 
 interface Props {
   categories: CategoryWithProjects[];
@@ -14,9 +14,9 @@ interface Props {
   onProjectFilter: (value: string) => void;
   workspacePath: string;
   projectFilterRef: React.RefObject<HTMLInputElement>;
-  onEditCategory?: (category: CategoryWithProjects) => void;
+  onEditCategory?: (category: Category | null) => void;
   onDeleteCategory?: (category: CategoryWithProjects) => void;
-  onEditProject?: (project: ProjectListItem) => void;
+  onEditProject?: (project: Project | null) => void;
   onDeleteProject?: (project: ProjectListItem) => void;
 }
 
@@ -61,7 +61,7 @@ const LeftPanel: React.FC<Props> = ({
             className="small-button"
             onClick={() => {
               const current = categories.find((c) => c.id === selectedCategoryId);
-              if (current && onEditCategory) onEditCategory(current);
+              if (onEditCategory) onEditCategory(current ? (current as unknown as Category) : null);
             }}
             disabled={!selectedCategoryId || !onEditCategory}
           >
@@ -112,7 +112,7 @@ const LeftPanel: React.FC<Props> = ({
               const current = categories
                 .find((c) => c.id === selectedCategoryId)
                 ?.projects.find((p) => p.id === selectedProjectId);
-              if (current && onEditProject) onEditProject(current);
+              if (onEditProject) onEditProject(current ? (current as unknown as Project) : null);
             }}
             disabled={!selectedProjectId || !onEditProject}
           >

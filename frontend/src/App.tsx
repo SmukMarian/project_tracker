@@ -259,12 +259,12 @@ const App: React.FC = () => {
     }
   };
 
-  const openCategoryDialog = (category?: Category | null) => {
+  const openCategoryDialog = (category: Category | null) => {
     setEditingCategory(category ?? null);
     setShowCategoryDialog(true);
   };
 
-  const openProjectDialog = (project?: Project | null) => {
+  const openProjectDialog = (project: Project | null) => {
     setEditingProject(project ?? null);
     setShowProjectDialog(true);
   };
