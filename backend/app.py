@@ -50,6 +50,13 @@ def get_db():
         db.close()
 
 
+def _media_root() -> Path:
+    workspace = get_workspace_path()
+    media_root = workspace / "media"
+    media_root.mkdir(parents=True, exist_ok=True)
+    return media_root
+
+
 @app.get("/health")
 def healthcheck():
     return {"status": "ok"}
@@ -859,6 +866,35 @@ def create_attachment(attachment: schemas.AttachmentCreate, db: Session = Depend
     return db_attachment
 
 
+def _ensure_target_exists(db: Session, project_id: Optional[int], step_id: Optional[int]) -> None:
+    if project_id is None and step_id is None:
+        raise HTTPException(status_code=400, detail="Attachment must reference a project or step")
+
+    if project_id is not None:
+        exists = db.query(models.Project.id).filter(models.Project.id == project_id).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Project not found")
+    if step_id is not None:
+        exists = db.query(models.Step.id).filter(models.Step.id == step_id).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Step not found")
+
+
+def _persist_file(file: UploadFile, destination: Path) -> Path:
+    original_name = Path(file.filename or "attachment")
+    safe_name = original_name.name
+    target = destination / safe_name
+    counter = 1
+    while target.exists():
+        target = destination / f"{original_name.stem}_{counter}{original_name.suffix}"
+        counter += 1
+
+    with target.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return target
+
+
 @app.post("/attachments/upload", response_model=schemas.Attachment)
 async def upload_attachment(
     project_id: Optional[int] = Form(None),
@@ -866,26 +902,14 @@ async def upload_attachment(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    if project_id is None and step_id is None:
-        raise HTTPException(status_code=400, detail="Attachment must reference a project or step")
+    _ensure_target_exists(db, project_id, step_id)
 
-    workspace = get_workspace_path()
-    media_root = workspace / "media"
+    media_root = _media_root()
     target_dir = media_root / f"project_{project_id}" if project_id else media_root / f"step_{step_id}"
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    original_name = Path(file.filename or "attachment")
-    safe_name = original_name.name
-    destination = target_dir / safe_name
-    counter = 1
-    while destination.exists():
-        destination = target_dir / f"{original_name.stem}_{counter}{original_name.suffix}"
-        counter += 1
-
-    with destination.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    relative_path = destination.relative_to(workspace)
+    stored_file = _persist_file(file, target_dir)
+    relative_path = stored_file.relative_to(get_workspace_path())
 
     LOGGER.info(
         "Attachment uploaded: filename=%s stored_as=%s project_id=%s step_id=%s",
@@ -912,6 +936,13 @@ def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
     attachment = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
     if attachment is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    workspace = get_workspace_path()
+    file_path = workspace / attachment.path
+    if file_path.exists():
+        try:
+            file_path.unlink()
+        except OSError:
+            LOGGER.warning("Failed to delete attachment file %s", file_path)
     LOGGER.info(
         "Attachment removed: id=%s path=%s project_id=%s step_id=%s",
         attachment_id,
@@ -921,6 +952,36 @@ def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
     )
     db.delete(attachment)
     db.commit()
+
+
+@app.post("/projects/{project_id}/cover", response_model=schemas.Project)
+async def upload_project_cover(
+    project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    media_root = _media_root()
+    target_dir = media_root / f"project_{project_id}" / "cover"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    stored_file = _persist_file(file, target_dir)
+    new_relative = stored_file.relative_to(get_workspace_path())
+
+    if project.cover_image:
+        previous = get_workspace_path() / project.cover_image
+        if previous.exists():
+            try:
+                previous.unlink()
+            except OSError:
+                LOGGER.warning("Failed to remove old cover %s", previous)
+
+    project.cover_image = str(new_relative)
+    db.commit()
+    db.refresh(project)
+    db.refresh(project, attribute_names=["steps", "characteristics", "attachments"])
+    return _apply_progress(project)
 
 
 @app.get("/projects/{project_id}/attachments", response_model=list[schemas.Attachment])

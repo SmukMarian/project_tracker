@@ -13,6 +13,7 @@ export interface Subtask {
   status: Status;
   assignee_id?: number;
   target_date?: string;
+  completed_date?: string;
   weight: number;
   order_index: number;
   comment?: string;
@@ -52,6 +53,7 @@ export interface Project {
   media_path?: string;
   steps: Step[];
   inprogress_coeff?: number;
+  attachments?: Attachment[];
 }
 
 export interface Attachment {

@@ -8,19 +8,33 @@ interface Props {
   onExportPresentation: () => void;
   onEdit?: () => void;
   onOpenMedia?: () => void;
+  workspacePath?: string;
 }
 
-const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onExportPresentation, onEdit, onOpenMedia }) => {
+const ProjectCard: React.FC<Props> = ({
+  project,
+  pmDirectory,
+  workspacePath,
+  onExportWord,
+  onExportPresentation,
+  onEdit,
+  onOpenMedia
+}) => {
   const owner = pmDirectory.find((pm) => pm.id === project.owner_id);
   const projectStatusLabel: Record<Project['status'], string> = {
     active: 'Active',
     archived: 'Archived'
   };
+  const coverSrc = project.cover_image
+    ? workspacePath
+      ? `${workspacePath.replace(/\\$/, '')}/${project.cover_image}`
+      : project.cover_image
+    : null;
   return (
     <section className="project-card">
       <div className="cover" aria-label="Обложка проекта">
-        {project.cover_image ? (
-          <img src={project.cover_image} alt="Обложка" />
+        {coverSrc ? (
+          <img src={coverSrc} alt="Обложка" />
         ) : (
           <div className="cover-placeholder">Без обложки</div>
         )}
