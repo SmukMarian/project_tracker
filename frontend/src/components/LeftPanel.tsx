@@ -31,7 +31,11 @@ const LeftPanel: React.FC<Props> = ({
   onCategoryFilter,
   onProjectFilter,
   workspacePath,
-  projectFilterRef
+  projectFilterRef,
+  onEditCategory,
+  onDeleteCategory,
+  onEditProject,
+  onDeleteProject
 }) => {
   const parsedProjectFilter = parseTokens(projectFilter);
   return (
