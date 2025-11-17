@@ -44,6 +44,7 @@ SPA пытается загрузить данные с API (`VITE_API_BASE`, п
 3. Выполните `python packaging/build_installer.py --version 0.1.0 --with-nsis --workspace <путь к workspace>` из корня репозитория.
    - В `dist/` появится `haier-project-tracker.exe`; при наличии `makensis` — `HaierProjectTracker-Setup-<версия>.exe` по скрипту `packaging/installer.nsi`.
    - При переданном `--workspace` артефакты копируются в `<workspace>/updates/`, туда же пишется `manifest.json` с `version`, `download_url` (по умолчанию `http://127.0.0.1:8000/updates/download/<файл>`) и `sha256`. Опциональный `--notes` добавляет release notes.
+   - Флаг `--smoke-test` прогоняет валидацию манифеста через `packaging/test_update_flow.py` сразу после сборки; добавьте `--smoke-test-download`, если backend уже отдаёт `manifest.json` и файл по ссылке из `download_url` и нужно проверить загрузку/хэш. При необходимости укажите `--smoke-test-url` (например, `file:///.../workspace/updates/manifest.json`).
 
 ## Смоук-тест обновлений
 - Запустите backend (`uvicorn backend.app:app --reload`) и убедитесь, что workspace выбран.
@@ -56,4 +57,4 @@ SPA пытается загрузить данные с API (`VITE_API_BASE`, п
 - `docs/` — архитектурные заметки по проекту.
 
 ## Что дальше
-- Прогонять смоук-тест обновления (`packaging/test_update_flow.py`) на собранном инсталляторе, чтобы подтвердить раздачу манифеста и пакета.
+- Прогонять смоук-тест обновления (`packaging/test_update_flow.py`) на собранном инсталляторе или использовать `packaging/build_installer.py --smoke-test` для автоматической проверки манифеста (и при наличии backend — скачивания файла).

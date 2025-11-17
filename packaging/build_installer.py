@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import hashlib
@@ -84,6 +85,20 @@ def parse_args() -> argparse.Namespace:
         "--notes",
         help="Optional release notes string to embed into manifest.json",
     )
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Validate the generated manifest with packaging/test_update_flow.py after packaging",
+    )
+    parser.add_argument(
+        "--smoke-test-download",
+        action="store_true",
+        help="When used with --smoke-test, also download the package referenced in the manifest",
+    )
+    parser.add_argument(
+        "--smoke-test-url",
+        help="Override manifest URL for smoke test; defaults to the generated manifest file URI when --workspace is set",
+    )
     return parser.parse_args()
 
 
@@ -112,6 +127,24 @@ def write_manifest(workspace: Path, filename: str, version: str, download_base: 
     return manifest_path
 
 
+def run_smoke_test(manifest_url: str, version: str, expected_sha: str | None, download: bool) -> None:
+    script = REPO_ROOT / "packaging" / "test_update_flow.py"
+    cmd = [
+        sys.executable,
+        str(script),
+        "--manifest-url",
+        manifest_url,
+        "--expected-version",
+        version,
+    ]
+    if expected_sha:
+        cmd.extend(["--expected-sha256", expected_sha])
+    if not download:
+        cmd.append("--no-download")
+    print(f"Running smoke test: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+
+
 def main() -> None:
     args = parse_args()
     DIST_DIR.mkdir(parents=True, exist_ok=True)
@@ -127,6 +160,7 @@ def main() -> None:
             sha_values[installer.name] = compute_sha256(installer)
             print(f"SHA256({installer.name})={sha_values[installer.name]}")
 
+    manifest_path: Path | None = None
     if args.workspace:
         updates_dir = args.workspace / "updates"
         updates_dir.mkdir(parents=True, exist_ok=True)
@@ -141,7 +175,20 @@ def main() -> None:
         # Prefer NSIS installer for manifest if present, otherwise the one-file exe.
         manifest_target = installer or exe
         manifest_sha = sha_values.get(manifest_target.name)
-        write_manifest(args.workspace, manifest_target.name, args.version, args.download_base, manifest_sha, args.notes)
+        manifest_path = write_manifest(
+            args.workspace, manifest_target.name, args.version, args.download_base, manifest_sha, args.notes
+        )
+
+    if args.smoke_test:
+        if not manifest_path:
+            raise SystemExit("--smoke-test requires --workspace to locate the generated manifest")
+        manifest_url = args.smoke_test_url or manifest_path.as_uri()
+        run_smoke_test(
+            manifest_url,
+            args.version,
+            sha_values.get((installer or exe).name),
+            download=args.smoke_test_download,
+        )
 
 
 if __name__ == "__main__":

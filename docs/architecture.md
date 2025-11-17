@@ -35,6 +35,6 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 - Хостинг обновлений с манифестом версии/ссылки/примечаний и опциональным SHA-256, загрузкой пакета и раздачей файла для desktop-обновлений.
 
 ## Next steps
-1. Прогонять смоук-тест обновлений (`python packaging/test_update_flow.py`) после сборки инсталлятора, чтобы подтвердить валидность манифеста, контрольной суммы и скачиваемого пакета.
-2. Использовать `packaging/build_installer.py --workspace <path>` для автоматического копирования артефактов и генерации manifest.json в workspace/updates перед хостингом обновлений.
+1. Использовать `packaging/build_installer.py --workspace <path> --smoke-test` для автоматического копирования артефактов, генерации manifest.json в workspace/updates и проверки манифеста (при активном backend добавить `--smoke-test-download` для проверки загрузки/хэша).
+2. При необходимости запускать `python packaging/test_update_flow.py` вручную для дополнительных сценариев (альтернативные URL/ожидаемые версии).
 3. Расширить покрытие автопроверок установки/обновления (PyInstaller + NSIS) по мере появления CI.
