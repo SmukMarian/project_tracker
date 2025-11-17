@@ -40,6 +40,7 @@ export const categories: Category[] = [
         cover_image: '',
         media_path: 'workspace/media/ovens',
         inprogress_coeff: 0.45,
+        attachments: [],
         steps: [
           {
             id: 1001,
@@ -115,6 +116,7 @@ export const categories: Category[] = [
         retail_price: 599,
         progress_percent: 78,
         inprogress_coeff: 0.6,
+        attachments: [],
         steps: [
           {
             id: 1101,

@@ -11,7 +11,9 @@ import {
   fetchWorkspace,
   setWorkspace,
   updateCategory,
-  updateProject
+  updateProject,
+  uploadAttachment,
+  uploadProjectCover
 } from './api';
 import LeftPanel from './components/LeftPanel';
 import PmDirectory from './components/PmDirectory';
@@ -209,20 +211,39 @@ const App: React.FC = () => {
     setInfo('Категория удалена.');
   };
 
-  const handleSaveProject = async (payload: Parameters<typeof createProject>[0]) => {
+  const handleSaveProject = async (
+    payload: Parameters<typeof createProject>[0] & { coverFile?: File | null; attachments?: File[] }
+  ) => {
+    const { coverFile, attachments, ...projectPayload } = payload;
+    let project: Project;
     if (editingProject) {
-      const updated = await updateProject(editingProject.id, payload);
-      setProjects((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
-      setSelectedProjectId(updated.id);
-      setSelectedCategoryId(updated.category_id ?? null);
+      project = await updateProject(editingProject.id, projectPayload);
       setInfo('Проект обновлён.');
     } else {
-      const created = await createProject(payload);
-      setProjects((prev) => [...prev, { ...created, steps: [] }]);
-      setSelectedProjectId(created.id);
-      setSelectedCategoryId(created.category_id ?? null);
+      project = await createProject(projectPayload);
       setInfo('Проект создан.');
     }
+
+    if (coverFile) {
+      project = await uploadProjectCover(project.id, coverFile);
+    }
+
+    if (attachments && attachments.length > 0) {
+      const uploaded = await Promise.all(
+        attachments.map((file) => uploadAttachment({ project_id: project.id, file }))
+      );
+      project = { ...project, attachments: [...(project.attachments ?? []), ...uploaded] };
+    }
+
+    setProjects((prev) => {
+      const exists = prev.find((p) => p.id === project.id);
+      if (exists) {
+        return prev.map((p) => (p.id === project.id ? { ...p, ...project } : p));
+      }
+      return [...prev, { ...project, steps: project.steps ?? [] }];
+    });
+    setSelectedProjectId(project.id);
+    setSelectedCategoryId(project.category_id ?? null);
     setError(null);
   };
 
@@ -319,6 +340,7 @@ const App: React.FC = () => {
               <ProjectCard
                 project={selectedProject}
                 pmDirectory={pmDirectory}
+                workspacePath={workspacePath}
                 onExportWord={handleExportWord}
                 onExportPresentation={handleExportPresentation}
                 onEdit={() => openProjectDialog(selectedProject)}
