@@ -49,6 +49,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
   const [subtaskStatus, setSubtaskStatus] = useState<Status>('todo');
   const [subtaskAssignee, setSubtaskAssignee] = useState<number | 'unassigned'>('unassigned');
   const [subtaskTargetDate, setSubtaskTargetDate] = useState('');
+  const [subtaskCompletedDate, setSubtaskCompletedDate] = useState('');
   const [subtaskWeight, setSubtaskWeight] = useState('1');
   const [subtaskComment, setSubtaskComment] = useState('');
   const [stepComments, setStepComments] = useState(project.steps[0]?.comments ?? '');
@@ -196,6 +197,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
       setSubtaskStatus('todo');
       setSubtaskAssignee('unassigned');
       setSubtaskTargetDate('');
+      setSubtaskCompletedDate('');
       setSubtaskWeight('1');
       setSubtaskComment('');
       return;
@@ -204,6 +206,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
     setSubtaskStatus(selectedSubtask.status);
     setSubtaskAssignee(selectedSubtask.assignee_id ?? 'unassigned');
     setSubtaskTargetDate(selectedSubtask.target_date ?? '');
+    setSubtaskCompletedDate(selectedSubtask.completed_date ?? '');
     setSubtaskWeight(String(selectedSubtask.weight ?? 1));
     setSubtaskComment(selectedSubtask.comment ?? '');
   }, [selectedSubtask, selectedSubtaskId]);
@@ -359,6 +362,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
           weight: 1,
           order_index: prev.length + 1,
           comment: '',
+          completed_date: undefined,
           target_date: undefined,
           assignee_id: undefined
         }
@@ -422,6 +426,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
       status: subtaskStatus,
       assignee_id: subtaskAssignee === 'unassigned' ? undefined : subtaskAssignee,
       target_date: subtaskTargetDate || undefined,
+      completed_date: subtaskCompletedDate || undefined,
       weight:
         subtaskWeight !== '' && Number.isFinite(Number(subtaskWeight))
           ? Number(subtaskWeight)
@@ -586,6 +591,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
               <span>Статус</span>
               <span>Исполнитель</span>
               <span>Целевая дата</span>
+              <span>Дата завершения</span>
               <span>Вес</span>
               <span>Комментарий</span>
             </div>
@@ -603,6 +609,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
                   <span className={`status ${st.status}`}>{statusLabel[st.status]}</span>
                   <span>{pmName(st.assignee_id)}</span>
                   <span>{st.target_date ?? '—'}</span>
+                  <span>{st.completed_date ?? '—'}</span>
                   <span>{st.weight}</span>
                   <span className="ellipsis" title={st.comment}>
                     {st.comment || '—'}
@@ -636,7 +643,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
                   </select>
                 </label>
               </div>
-              <div className="grid three-columns">
+              <div className="grid two-columns">
                 <label>
                   Исполнитель
                   <select
@@ -663,6 +670,17 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
                     className="input"
                     value={subtaskTargetDate}
                     onChange={(e) => setSubtaskTargetDate(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="grid two-columns">
+                <label>
+                  Дата завершения
+                  <input
+                    type="date"
+                    className="input"
+                    value={subtaskCompletedDate}
+                    onChange={(e) => setSubtaskCompletedDate(e.target.value)}
                   />
                 </label>
                 <label>
