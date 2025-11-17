@@ -1,4 +1,5 @@
 import React from 'react';
+import { parseTokens } from '../search';
 import { Category } from '../types';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   onCategoryFilter: (value: string) => void;
   onProjectFilter: (value: string) => void;
   workspacePath: string;
+  projectFilterRef: React.RefObject<HTMLInputElement>;
 }
 
 const LeftPanel: React.FC<Props> = ({
@@ -24,8 +26,10 @@ const LeftPanel: React.FC<Props> = ({
   projectFilter,
   onCategoryFilter,
   onProjectFilter,
-  workspacePath
+  workspacePath,
+  projectFilterRef
 }) => {
+  const parsedProjectFilter = parseTokens(projectFilter);
   return (
     <aside className="sidebar">
       <div className="workspace-path" title={workspacePath}>
@@ -66,6 +70,7 @@ const LeftPanel: React.FC<Props> = ({
           placeholder="Поиск по проектам…"
           value={projectFilter}
           onChange={(e) => onProjectFilter(e.target.value)}
+          ref={projectFilterRef}
         />
       </div>
       <div className="list-block projects">
@@ -86,7 +91,13 @@ const LeftPanel: React.FC<Props> = ({
               .flatMap((c) => c.projects.map((p) => ({ ...p, categoryId: c.id })))
               .filter((p) => {
                 const text = `${p.name} ${p.code ?? ''} ${p.status}`.toLowerCase();
-                return text.includes(projectFilter.toLowerCase());
+                const matchesText = parsedProjectFilter.text
+                  ? text.includes(parsedProjectFilter.text.toLowerCase())
+                  : true;
+                const matchesStatus = parsedProjectFilter.status
+                  ? p.status.toLowerCase() === parsedProjectFilter.status.toLowerCase()
+                  : true;
+                return matchesText && matchesStatus;
               })
               .map((p) => (
                 <div

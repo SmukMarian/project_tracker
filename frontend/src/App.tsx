@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchCategories, fetchKpi, fetchPMs, fetchProjects, fetchWorkspace, setWorkspace } from './api';
 import LeftPanel from './components/LeftPanel';
 import PmDirectory from './components/PmDirectory';
@@ -8,6 +8,7 @@ import TopMenu from './components/TopMenu';
 import KpiModal from './components/KpiModal';
 import { categories as seedCategories, pms as seedPMs } from './data';
 import { Category, KpiReport, Project } from './types';
+import { parseTokens } from './search';
 
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [workspacePath, setWorkspacePath] = useState('');
+  const projectFilterRef = useRef<HTMLInputElement | null>(null);
   const seedProjects = useMemo(
     () => seedCategories.flatMap((c) => c.projects.map((p) => ({ ...p, category_id: c.id }))),
     []
@@ -70,10 +72,14 @@ const App: React.FC = () => {
     if (error) return;
     let isMounted = true;
     const loadProjects = async () => {
+      const parsed = parseTokens(projectFilter);
+      const ownerId = pmDirectory.find((pm) => pm.name.toLowerCase() === parsed.owner?.toLowerCase())?.id;
       try {
         const fetched = await fetchProjects({
           category_id: selectedCategoryId ?? undefined,
-          search: projectFilter || undefined
+          owner_id: ownerId,
+          status: parsed.status,
+          search: parsed.text || undefined
         });
         if (!isMounted) return;
         setProjects(fetched.length ? fetched : seedProjects);
@@ -87,7 +93,18 @@ const App: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [error, projectFilter, selectedCategoryId, seedProjects]);
+  }, [error, pmDirectory, projectFilter, selectedCategoryId, seedProjects]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        projectFilterRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const categoriesWithProjects = useMemo(() => {
     return categories.map((category) => ({
@@ -185,6 +202,7 @@ const App: React.FC = () => {
             onCategoryFilter={setCategoryFilter}
             onProjectFilter={setProjectFilter}
             workspacePath={workspacePath}
+            projectFilterRef={projectFilterRef}
           />
         )}
 

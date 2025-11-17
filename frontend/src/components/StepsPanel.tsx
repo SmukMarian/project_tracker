@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { fetchSteps, fetchSubtasks } from '../api';
+import { parseTokens } from '../search';
 import { PM, Project, Step, Status, Subtask } from '../types';
 
 interface Props {
@@ -29,6 +30,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [loadingSubtasks, setLoadingSubtasks] = useState(false);
   const [subtaskError, setSubtaskError] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>(project.steps[0]?.subtasks ?? []);
+  const [stepComments, setStepComments] = useState(project.steps[0]?.comments ?? '');
 
   useEffect(() => {
     setSteps(project.steps);
@@ -37,6 +39,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
     setSubtaskStatusFilter('all');
     setStepError(null);
     setSubtaskError(null);
+    setStepComments(project.steps[0]?.comments ?? '');
   }, [project.id, project.steps]);
 
   useEffect(() => {
@@ -88,6 +91,12 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null;
 
   useEffect(() => {
+    if (selectedStep) {
+      setStepComments(selectedStep.comments ?? '');
+    }
+  }, [selectedStepId, selectedStep]);
+
+  useEffect(() => {
     if (!selectedStepId || !selectedStep) {
       setSubtasks([]);
       return;
@@ -123,13 +132,122 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
     };
   }, [selectedStepId, selectedStep, subtaskSearch, subtaskStatusFilter]);
 
-  const filteredSubtasks = useMemo(() => {
-    return subtasks.filter((st) =>
-      st.name.toLowerCase().includes(subtaskSearch.toLowerCase())
+  useEffect(() => {
+    if (!selectedStepId) return;
+    setSteps((prev) =>
+      prev.map((s) => (s.id === selectedStepId ? { ...s, subtasks } : s))
     );
+  }, [selectedStepId, subtasks]);
+
+  const filteredSubtasks = useMemo(() => {
+    const parsed = parseTokens(subtaskSearch);
+    return subtasks.filter((st) => {
+      const matchesText = parsed.text
+        ? st.name.toLowerCase().includes(parsed.text.toLowerCase())
+        : true;
+      const matchesStatus = parsed.status
+        ? st.status.toLowerCase() === parsed.status.toLowerCase()
+        : true;
+      const matchesWeight = parsed.weightValue
+        ? parsed.weightComparator === '>'
+          ? st.weight > parsed.weightValue
+          : parsed.weightComparator === '<'
+          ? st.weight < parsed.weightValue
+          : st.weight === parsed.weightValue
+        : true;
+      return matchesText && matchesStatus && matchesWeight;
+    });
   }, [subtasks, subtaskSearch]);
 
   const pmName = (id?: number) => pmDirectory.find((pm) => pm.id === id)?.name ?? '—';
+
+  const filteredSteps = useMemo(() => {
+    const parsed = parseTokens(stepSearch);
+    return steps.filter((step) => {
+      const haystack = `${step.name} ${step.description ?? ''}`.toLowerCase();
+      const matchesText = parsed.text ? haystack.includes(parsed.text.toLowerCase()) : true;
+      const matchesStatus = parsed.status
+        ? step.status.toLowerCase() === parsed.status.toLowerCase()
+        : true;
+      const matchesWeight = parsed.weightValue && step.weight !== undefined
+        ? parsed.weightComparator === '>'
+          ? step.weight > parsed.weightValue
+          : parsed.weightComparator === '<'
+          ? step.weight < parsed.weightValue
+          : step.weight === parsed.weightValue
+        : true;
+      return matchesText && matchesStatus && matchesWeight;
+    });
+  }, [stepSearch, steps]);
+
+  const handleAddStep = () => {
+    if (!stepName.trim()) return;
+    let newId = 1;
+    setSteps((prev) => {
+      const maxId = prev.reduce((acc, s) => Math.max(acc, s.id), 0);
+      newId = maxId + 1;
+      const newStep: Step = {
+        id: newId,
+        name: stepName.trim(),
+        status: 'todo',
+        assignee_id: undefined,
+        description: '',
+        start_date: undefined,
+        target_date: undefined,
+        completed_date: undefined,
+        weight: 1,
+        order_index: prev.length + 1,
+        comments: '',
+        subtasks: [],
+        progress_percent: 0
+      };
+      return [...prev, newStep];
+    });
+    setStepName('');
+    setSelectedStepId(newId);
+  };
+
+  const handleDeleteStep = () => {
+    if (!selectedStepId) return;
+    setSteps((prev) => {
+      const filtered = prev.filter((s) => s.id !== selectedStepId);
+      return filtered.map((s, idx) => ({ ...s, order_index: idx + 1 }));
+    });
+    setSelectedStepId((prev) => {
+      if (prev !== selectedStepId && prev !== null) return prev;
+      const remaining = steps.filter((s) => s.id !== selectedStepId);
+      return remaining[0]?.id ?? null;
+    });
+    setSubtasks([]);
+  };
+
+  const handleAddSubtask = () => {
+    if (!selectedStep) return;
+    const title = prompt('Название подзадачи');
+    if (!title) return;
+    setSubtasks((prev) => {
+      const maxId = prev.reduce((acc, st) => Math.max(acc, st.id), 0);
+      return [
+        ...prev,
+        {
+          id: maxId + 1,
+          name: title,
+          status: 'todo',
+          weight: 1,
+          order_index: prev.length + 1,
+          comment: '',
+          target_date: undefined,
+          assignee_id: undefined
+        }
+      ];
+    });
+  };
+
+  const handleDeleteSubtask = () => {
+    const selected = filteredSubtasks[0];
+    if (!selected) return;
+    setSubtasks((prev) => prev.filter((st) => st.id !== selected.id));
+  };
 
   return (
     <section className="steps-panel">
@@ -141,15 +259,14 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
           onChange={(e) => setStepName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && stepName.trim()) {
-              // placeholder handler
-              setStepName('');
+              handleAddStep();
             }
           }}
         />
-        <button className="menu-button" disabled={!stepName.trim()}>
+        <button className="menu-button" disabled={!stepName.trim()} onClick={handleAddStep}>
           Добавить шаг
         </button>
-        <button className="menu-button" disabled={!selectedStepId}>
+        <button className="menu-button" disabled={!selectedStepId} onClick={handleDeleteStep}>
           Удалить выбранное
         </button>
         <input
@@ -207,10 +324,10 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         <div className="subtasks">
           <div className="subtask-toolbar">
             <div className="left">
-              <button className="menu-button" disabled={!selectedStepId}>
+              <button className="menu-button" disabled={!selectedStepId} onClick={handleAddSubtask}>
                 Добавить подзадачу
               </button>
-              <button className="menu-button" disabled={!selectedStepId}>
+              <button className="menu-button" disabled={!selectedStepId} onClick={handleDeleteSubtask}>
                 Удалить подзадачу
               </button>
             </div>
@@ -268,8 +385,25 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
       {activeTab === 'details' && selectedStep && (
         <div className="details-tab">
           <label htmlFor="step-comments">Комментарий по шагу</label>
-          <textarea id="step-comments" className="textarea" defaultValue={selectedStep.comments} />
-          <button className="menu-button align-end">Сохранить</button>
+          <textarea
+            id="step-comments"
+            className="textarea"
+            value={stepComments}
+            onChange={(e) => setStepComments(e.target.value)}
+          />
+          <button
+            className="menu-button align-end"
+            onClick={() => {
+              if (!selectedStepId) return;
+              setSteps((prev) =>
+                prev.map((s) =>
+                  s.id === selectedStepId ? { ...s, comments: stepComments } : s
+                )
+              );
+            }}
+          >
+            Сохранить
+          </button>
         </div>
       )}
 
@@ -287,7 +421,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
           <span>Комментарий</span>
         </div>
         <div className="step-table-body">
-          {steps
+          {filteredSteps
             .slice()
             .sort((a, b) => a.order_index - b.order_index)
             .map((step: Step) => (
