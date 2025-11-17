@@ -1,4 +1,14 @@
-import { Category, KpiReport, PM, Project, ProjectStatus, Step, Subtask, WorkspaceState } from './types';
+import {
+  Attachment,
+  Category,
+  KpiReport,
+  PM,
+  Project,
+  ProjectStatus,
+  Step,
+  Subtask,
+  WorkspaceState
+} from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -226,6 +236,40 @@ export async function deleteSubtask(subtaskId: number): Promise<void> {
   const res = await fetch(`${API_BASE}/subtasks/${subtaskId}`, { method: 'DELETE' });
   if (!res.ok) {
     throw new Error('Failed to delete subtask');
+  }
+}
+
+export async function fetchProjectAttachments(projectId: number): Promise<Attachment[]> {
+  return getJson<Attachment[]>(`/projects/${projectId}/attachments`);
+}
+
+export async function fetchStepAttachments(stepId: number): Promise<Attachment[]> {
+  return getJson<Attachment[]>(`/steps/${stepId}/attachments`);
+}
+
+export async function uploadAttachment(payload: {
+  project_id?: number;
+  step_id?: number;
+  file: File;
+}): Promise<Attachment> {
+  const form = new FormData();
+  form.append('file', payload.file);
+  if (payload.project_id) form.append('project_id', String(payload.project_id));
+  if (payload.step_id) form.append('step_id', String(payload.step_id));
+  const res = await fetch(`${API_BASE}/attachments/upload`, {
+    method: 'POST',
+    body: form
+  });
+  if (!res.ok) {
+    throw new Error('Failed to upload attachment');
+  }
+  return (await res.json()) as Attachment;
+}
+
+export async function deleteAttachment(attachmentId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/attachments/${attachmentId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error('Failed to delete attachment');
   }
 }
 

@@ -7,9 +7,10 @@ interface Props {
   onExportWord: () => void;
   onExportPresentation: () => void;
   onEdit?: () => void;
+  onOpenMedia?: () => void;
 }
 
-const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onExportPresentation, onEdit }) => {
+const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onExportPresentation, onEdit, onOpenMedia }) => {
   const owner = pmDirectory.find((pm) => pm.id === project.owner_id);
   const projectStatusLabel: Record<Project['status'], string> = {
     active: 'Active',
@@ -59,7 +60,9 @@ const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onEx
             Изменить карточку…
           </button>
           <button className="menu-button">Характеристики…</button>
-          <button className="menu-button">Медиатека</button>
+          <button className="menu-button" onClick={onOpenMedia}>
+            Медиатека
+          </button>
           <button className="menu-button" onClick={() => window.open('http://localhost:8000/export/categories/excel', '_blank')}>
             Excel
           </button>

@@ -54,6 +54,14 @@ export interface Project {
   inprogress_coeff?: number;
 }
 
+export interface Attachment {
+  id: number;
+  path: string;
+  added_at?: string;
+  project_id?: number;
+  step_id?: number;
+}
+
 export interface Category {
   id: number;
   name: string;

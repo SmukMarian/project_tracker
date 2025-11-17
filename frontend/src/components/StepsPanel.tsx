@@ -8,6 +8,7 @@ import {
   fetchSubtasks,
   updateStep
 } from '../api';
+import AttachmentModal from './AttachmentModal';
 import StepDialog from './StepDialog';
 import { parseTokens } from '../search';
 import { PM, Project, Step, Status, Subtask } from '../types';
@@ -15,6 +16,7 @@ import { PM, Project, Step, Status, Subtask } from '../types';
 interface Props {
   project: Project;
   pmDirectory: PM[];
+  workspacePath?: string;
 }
 
 const statusLabel: Record<Step['status'], string> = {
@@ -24,7 +26,7 @@ const statusLabel: Record<Step['status'], string> = {
   done: 'Завершено'
 };
 
-const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
+const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) => {
   const [stepName, setStepName] = useState('');
   const [subtaskSearch, setSubtaskSearch] = useState('');
   const [subtaskStatusFilter, setSubtaskStatusFilter] = useState<Status | 'all'>('all');
@@ -44,6 +46,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [actionTone, setActionTone] = useState<'info' | 'warning'>('info');
   const [showStepDialog, setShowStepDialog] = useState(false);
   const [editingStep, setEditingStep] = useState<Step | null>(null);
+  const [showStepAttachments, setShowStepAttachments] = useState(false);
 
   useEffect(() => {
     setSteps(project.steps);
@@ -376,6 +379,13 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         <button className="menu-button" disabled={!selectedStepId} onClick={handleDeleteStep}>
           Удалить выбранное
         </button>
+        <button
+          className="menu-button"
+          disabled={!selectedStepId}
+          onClick={() => setShowStepAttachments(true)}
+        >
+          Вложения шага
+        </button>
         <input
           className="input"
           placeholder="Поиск по шагам…"
@@ -586,6 +596,15 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
             ))}
         </div>
       </div>
+      {showStepAttachments && selectedStep && (
+        <AttachmentModal
+          stepId={selectedStep.id}
+          stepName={selectedStep.name}
+          projectName={project.name}
+          workspacePath={workspacePath}
+          onClose={() => setShowStepAttachments(false)}
+        />
+      )}
       {showStepDialog && (
         <StepDialog
           initial={editingStep ?? undefined}

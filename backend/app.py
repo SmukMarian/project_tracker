@@ -1,8 +1,11 @@
 from io import BytesIO
 from pathlib import Path
+from datetime import date
+from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+import shutil
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_
@@ -783,6 +786,46 @@ def create_attachment(attachment: schemas.AttachmentCreate, db: Session = Depend
     if attachment.project_id is None and attachment.step_id is None:
         raise HTTPException(status_code=400, detail="Attachment must reference a project or step")
     db_attachment = models.Attachment(**attachment.dict())
+    db.add(db_attachment)
+    db.commit()
+    db.refresh(db_attachment)
+    return db_attachment
+
+
+@app.post("/attachments/upload", response_model=schemas.Attachment)
+async def upload_attachment(
+    project_id: Optional[int] = Form(None),
+    step_id: Optional[int] = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if project_id is None and step_id is None:
+        raise HTTPException(status_code=400, detail="Attachment must reference a project or step")
+
+    workspace = get_workspace_path()
+    media_root = workspace / "media"
+    target_dir = media_root / f"project_{project_id}" if project_id else media_root / f"step_{step_id}"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    original_name = Path(file.filename or "attachment")
+    safe_name = original_name.name
+    destination = target_dir / safe_name
+    counter = 1
+    while destination.exists():
+        destination = target_dir / f"{original_name.stem}_{counter}{original_name.suffix}"
+        counter += 1
+
+    with destination.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    relative_path = destination.relative_to(workspace)
+
+    db_attachment = models.Attachment(
+        path=str(relative_path),
+        project_id=project_id,
+        step_id=step_id,
+        added_at=date.today(),
+    )
     db.add(db_attachment)
     db.commit()
     db.refresh(db_attachment)

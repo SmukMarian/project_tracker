@@ -21,6 +21,7 @@ import TopMenu from './components/TopMenu';
 import KpiModal from './components/KpiModal';
 import CategoryDialog from './components/CategoryDialog';
 import ProjectDialog from './components/ProjectDialog';
+import AttachmentModal from './components/AttachmentModal';
 import { categories as seedCategories, pms as seedPMs } from './data';
 import { Category, KpiReport, Project } from './types';
 import { parseTokens } from './search';
@@ -56,6 +57,7 @@ const App: React.FC = () => {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showProjectMedia, setShowProjectMedia] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -320,8 +322,13 @@ const App: React.FC = () => {
                 onExportWord={handleExportWord}
                 onExportPresentation={handleExportPresentation}
                 onEdit={() => openProjectDialog(selectedProject)}
+                onOpenMedia={() => setShowProjectMedia(true)}
               />
-              <StepsPanel project={selectedProject} pmDirectory={pmDirectory} />
+              <StepsPanel
+                project={selectedProject}
+                pmDirectory={pmDirectory}
+                workspacePath={workspacePath}
+              />
             </>
           ) : (
             <div className="empty">Выберите проект слева, чтобы увидеть детали.</div>
@@ -355,6 +362,14 @@ const App: React.FC = () => {
             setShowProjectDialog(false);
             setEditingProject(null);
           }}
+        />
+      )}
+      {showProjectMedia && selectedProject && (
+        <AttachmentModal
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          workspacePath={workspacePath}
+          onClose={() => setShowProjectMedia(false)}
         />
       )}
     </div>
