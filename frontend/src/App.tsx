@@ -1,11 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchCategories, fetchKpi, fetchPMs, fetchProjects, fetchWorkspace, setWorkspace } from './api';
+import {
+  createCategory,
+  createProject,
+  deleteCategory,
+  deleteProject,
+  fetchCategories,
+  fetchKpi,
+  fetchPMs,
+  fetchProjects,
+  fetchWorkspace,
+  setWorkspace,
+  updateCategory,
+  updateProject
+} from './api';
 import LeftPanel from './components/LeftPanel';
 import PmDirectory from './components/PmDirectory';
 import ProjectCard from './components/ProjectCard';
 import StepsPanel from './components/StepsPanel';
 import TopMenu from './components/TopMenu';
 import KpiModal from './components/KpiModal';
+import CategoryDialog from './components/CategoryDialog';
+import ProjectDialog from './components/ProjectDialog';
 import { categories as seedCategories, pms as seedPMs } from './data';
 import { Category, KpiReport, Project } from './types';
 import { parseTokens } from './search';
@@ -37,6 +52,10 @@ const App: React.FC = () => {
   const [showPmDirectory, setShowPmDirectory] = useState(false);
   const [showKpi, setShowKpi] = useState(false);
   const [kpiData, setKpiData] = useState<KpiReport | null>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [showProjectDialog, setShowProjectDialog] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -162,6 +181,57 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveCategory = async (payload: { name: string }) => {
+    if (editingCategory) {
+      const updated = await updateCategory(editingCategory.id, payload);
+      setCategories((prev) =>
+        prev.map((c) => (c.id === updated.id ? { ...c, name: updated.name } : c))
+      );
+      setInfo('Категория обновлена.');
+    } else {
+      const created = await createCategory(payload);
+      setCategories((prev) => [...prev, { ...created, projects: [] }]);
+      setSelectedCategoryId(created.id);
+      setInfo('Категория создана.');
+    }
+    setError(null);
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!editingCategory) return;
+    await deleteCategory(editingCategory.id);
+    setCategories((prev) => prev.filter((c) => c.id !== editingCategory.id));
+    setProjects((prev) => prev.filter((p) => p.category_id !== editingCategory.id));
+    setSelectedCategoryId(null);
+    setSelectedProjectId(null);
+    setInfo('Категория удалена.');
+  };
+
+  const handleSaveProject = async (payload: Parameters<typeof createProject>[0]) => {
+    if (editingProject) {
+      const updated = await updateProject(editingProject.id, payload);
+      setProjects((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
+      setSelectedProjectId(updated.id);
+      setSelectedCategoryId(updated.category_id ?? null);
+      setInfo('Проект обновлён.');
+    } else {
+      const created = await createProject(payload);
+      setProjects((prev) => [...prev, { ...created, steps: [] }]);
+      setSelectedProjectId(created.id);
+      setSelectedCategoryId(created.category_id ?? null);
+      setInfo('Проект создан.');
+    }
+    setError(null);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!editingProject) return;
+    await deleteProject(editingProject.id);
+    setProjects((prev) => prev.filter((p) => p.id !== editingProject.id));
+    setSelectedProjectId(null);
+    setInfo('Проект удалён.');
+  };
+
   const handleExportCategories = () => {
     window.open('http://localhost:8000/export/categories/excel', '_blank');
   };
@@ -187,12 +257,22 @@ const App: React.FC = () => {
     }
   };
 
+  const openCategoryDialog = (category?: Category | null) => {
+    setEditingCategory(category ?? null);
+    setShowCategoryDialog(true);
+  };
+
+  const openProjectDialog = (project?: Project | null) => {
+    setEditingProject(project ?? null);
+    setShowProjectDialog(true);
+  };
+
   return (
     <div className="app">
       <TopMenu
         onToggleSidebar={() => setCollapsed((v) => !v)}
-        onNewCategory={() => alert('Диалог создания категории (заглушка).')}
-        onNewProject={() => alert('Диалог создания проекта (заглушка).')}
+        onNewCategory={() => openCategoryDialog(null)}
+        onNewProject={() => openProjectDialog(null)}
         onWorkspace={handleWorkspace}
         onExportCategories={handleExportCategories}
         onOpenPmDirectory={() => setShowPmDirectory(true)}
@@ -215,6 +295,16 @@ const App: React.FC = () => {
             onProjectFilter={setProjectFilter}
             workspacePath={workspacePath}
             projectFilterRef={projectFilterRef}
+            onEditCategory={openCategoryDialog}
+            onDeleteCategory={(category) => {
+              setEditingCategory(category);
+              setShowCategoryDialog(true);
+            }}
+            onEditProject={openProjectDialog}
+            onDeleteProject={(project) => {
+              setEditingProject(project);
+              setShowProjectDialog(true);
+            }}
           />
         )}
 
@@ -229,6 +319,7 @@ const App: React.FC = () => {
                 pmDirectory={pmDirectory}
                 onExportWord={handleExportWord}
                 onExportPresentation={handleExportPresentation}
+                onEdit={() => openProjectDialog(selectedProject)}
               />
               <StepsPanel project={selectedProject} pmDirectory={pmDirectory} />
             </>
@@ -241,6 +332,31 @@ const App: React.FC = () => {
         <PmDirectory pms={pmDirectory} onClose={() => setShowPmDirectory(false)} />
       )}
       {showKpi && kpiData && <KpiModal data={kpiData} onClose={() => setShowKpi(false)} />}
+      {showCategoryDialog && (
+        <CategoryDialog
+          initial={editingCategory}
+          onSave={handleSaveCategory}
+          onDelete={editingCategory ? handleDeleteCategory : undefined}
+          onClose={() => {
+            setShowCategoryDialog(false);
+            setEditingCategory(null);
+          }}
+        />
+      )}
+      {showProjectDialog && (
+        <ProjectDialog
+          categories={categories}
+          pms={pmDirectory}
+          initial={editingProject}
+          defaultCategoryId={selectedCategoryId ?? undefined}
+          onSave={handleSaveProject}
+          onDelete={editingProject ? handleDeleteProject : undefined}
+          onClose={() => {
+            setShowProjectDialog(false);
+            setEditingProject(null);
+          }}
+        />
+      )}
     </div>
   );
 };

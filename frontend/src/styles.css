@@ -83,6 +83,16 @@ body {
   background: var(--button-hover);
 }
 
+.menu-button.ghost {
+  background: transparent;
+}
+
+.menu-button.danger {
+  background: #fee2e2;
+  border-color: #fecdd3;
+  color: #b91c1c;
+}
+
 .layout {
   flex: 1;
   display: grid;
@@ -133,6 +143,19 @@ body {
   border-radius: 6px;
   background: var(--panel-muted);
   cursor: pointer;
+}
+
+.small-button.danger {
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 0 12px;
+  flex-wrap: wrap;
 }
 
 .list-block {
@@ -587,6 +610,49 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.modal.large {
+  width: 720px;
+  max-width: 90vw;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-form.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modal-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.modal-form input,
+.modal-form textarea,
+.modal-form select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--text);
+}
+
+.modal-form textarea {
+  resize: vertical;
+}
+
+.modal-form .span-2 {
+  grid-column: span 2;
 }
 
 .modal-header {

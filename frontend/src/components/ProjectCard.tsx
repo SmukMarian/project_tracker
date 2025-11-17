@@ -6,9 +6,10 @@ interface Props {
   pmDirectory: PM[];
   onExportWord: () => void;
   onExportPresentation: () => void;
+  onEdit?: () => void;
 }
 
-const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onExportPresentation }) => {
+const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onExportPresentation, onEdit }) => {
   const owner = pmDirectory.find((pm) => pm.id === project.owner_id);
   const projectStatusLabel: Record<Project['status'], string> = {
     active: 'Active',
@@ -54,7 +55,9 @@ const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onEx
           <span className="progress-label">{project.progress_percent}% выполнения</span>
         </div>
         <div className="actions-row">
-          <button className="menu-button">Изменить карточку…</button>
+          <button className="menu-button" onClick={onEdit}>
+            Изменить карточку…
+          </button>
           <button className="menu-button">Характеристики…</button>
           <button className="menu-button">Медиатека</button>
           <button className="menu-button" onClick={() => window.open('http://localhost:8000/export/categories/excel', '_blank')}>

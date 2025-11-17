@@ -1,6 +1,6 @@
 import React from 'react';
 import { parseTokens } from '../search';
-import { Category } from '../types';
+import { Category, Project } from '../types';
 
 interface Props {
   categories: Category[];
@@ -14,6 +14,10 @@ interface Props {
   onProjectFilter: (value: string) => void;
   workspacePath: string;
   projectFilterRef: React.RefObject<HTMLInputElement>;
+  onEditCategory?: (category: Category) => void;
+  onDeleteCategory?: (category: Category) => void;
+  onEditProject?: (project: Project) => void;
+  onDeleteProject?: (project: Project) => void;
 }
 
 const LeftPanel: React.FC<Props> = ({
@@ -48,6 +52,28 @@ const LeftPanel: React.FC<Props> = ({
       </div>
       <div className="list-block">
         <div className="list-title">Категории</div>
+        <div className="inline-actions">
+          <button
+            className="small-button"
+            onClick={() => {
+              const current = categories.find((c) => c.id === selectedCategoryId);
+              if (current && onEditCategory) onEditCategory(current);
+            }}
+            disabled={!selectedCategoryId || !onEditCategory}
+          >
+            Редактировать
+          </button>
+          <button
+            className="small-button danger"
+            onClick={() => {
+              const current = categories.find((c) => c.id === selectedCategoryId);
+              if (current && onDeleteCategory) onDeleteCategory(current);
+            }}
+            disabled={!selectedCategoryId || !onDeleteCategory}
+          >
+            Удалить
+          </button>
+        </div>
         <div className="list">
           {categories
             .filter((c) => c.name.toLowerCase().includes(categoryFilter.toLowerCase()))
@@ -75,6 +101,32 @@ const LeftPanel: React.FC<Props> = ({
       </div>
       <div className="list-block projects">
         <div className="list-title">Проекты</div>
+        <div className="inline-actions">
+          <button
+            className="small-button"
+            onClick={() => {
+              const current = categories
+                .find((c) => c.id === selectedCategoryId)
+                ?.projects.find((p) => p.id === selectedProjectId);
+              if (current && onEditProject) onEditProject(current);
+            }}
+            disabled={!selectedProjectId || !onEditProject}
+          >
+            Редактировать
+          </button>
+          <button
+            className="small-button danger"
+            onClick={() => {
+              const current = categories
+                .find((c) => c.id === selectedCategoryId)
+                ?.projects.find((p) => p.id === selectedProjectId);
+              if (current && onDeleteProject) onDeleteProject(current);
+            }}
+            disabled={!selectedProjectId || !onDeleteProject}
+          >
+            Удалить
+          </button>
+        </div>
         <div className="project-table">
           <div className="project-table-head">
             <span>ID</span>

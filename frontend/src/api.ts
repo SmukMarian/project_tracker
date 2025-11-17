@@ -1,4 +1,4 @@
-import { Category, KpiReport, PM, Project, Step, Subtask, WorkspaceState } from './types';
+import { Category, KpiReport, PM, Project, ProjectStatus, Step, Subtask, WorkspaceState } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -34,11 +34,57 @@ export async function fetchCategories(): Promise<Category[]> {
   return getJson<Category[]>('/categories');
 }
 
+export async function createCategory(payload: { name: string }): Promise<Category> {
+  const res = await fetch(`${API_BASE}/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to create category');
+  }
+  return (await res.json()) as Category;
+}
+
+export async function updateCategory(id: number, payload: { name: string }): Promise<Category> {
+  const res = await fetch(`${API_BASE}/categories/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to update category');
+  }
+  return (await res.json()) as Category;
+}
+
+export async function deleteCategory(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/categories/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error('Failed to delete category');
+  }
+}
+
 export interface ProjectQuery {
   category_id?: number;
   owner_id?: number;
   status?: string;
   search?: string;
+}
+
+export interface ProjectPayload {
+  category_id: number;
+  name: string;
+  code?: string;
+  status?: ProjectStatus;
+  owner_id?: number;
+  start_date?: string;
+  target_date?: string;
+  description?: string;
+  moq?: number;
+  base_price?: number;
+  retail_price?: number;
+  inprogress_coeff?: number;
 }
 
 export async function fetchProjects(query: ProjectQuery = {}): Promise<Project[]> {
@@ -49,6 +95,37 @@ export async function fetchProjects(query: ProjectQuery = {}): Promise<Project[]
   if (query.search) params.set('search', query.search);
   const suffix = params.toString() ? `/projects?${params.toString()}` : '/projects';
   return getJson<Project[]>(suffix);
+}
+
+export async function createProject(payload: ProjectPayload): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to create project');
+  }
+  return (await res.json()) as Project;
+}
+
+export async function updateProject(projectId: number, payload: Partial<ProjectPayload>): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to update project');
+  }
+  return (await res.json()) as Project;
+}
+
+export async function deleteProject(projectId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error('Failed to delete project');
+  }
 }
 
 export async function fetchSteps(

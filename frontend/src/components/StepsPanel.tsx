@@ -8,6 +8,7 @@ import {
   fetchSubtasks,
   updateStep
 } from '../api';
+import StepDialog from './StepDialog';
 import { parseTokens } from '../search';
 import { PM, Project, Step, Status, Subtask } from '../types';
 
@@ -41,6 +42,8 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [stepComments, setStepComments] = useState(project.steps[0]?.comments ?? '');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionTone, setActionTone] = useState<'info' | 'warning'>('info');
+  const [showStepDialog, setShowStepDialog] = useState(false);
+  const [editingStep, setEditingStep] = useState<Step | null>(null);
 
   useEffect(() => {
     setSteps(project.steps);
@@ -237,6 +240,22 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
     persist();
   };
 
+  const handleStepDialogSave = async (payload: Parameters<typeof createStep>[0]) => {
+    if (editingStep) {
+      const updated = await updateStep(editingStep.id, payload);
+      setSteps((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
+      setSelectedStepId(updated.id);
+      setActionMessage('Шаг обновлён.');
+      setActionTone('info');
+    } else {
+      const created = await createStep(payload);
+      setSteps((prev) => [...prev, created]);
+      setSelectedStepId(created.id);
+      setActionMessage('Шаг создан.');
+      setActionTone('info');
+    }
+  };
+
   const handleDeleteStep = () => {
     if (!selectedStepId) return;
     const target = steps.find((s) => s.id === selectedStepId);
@@ -345,6 +364,15 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         <button className="menu-button" disabled={!stepName.trim()} onClick={handleAddStep}>
           Добавить шаг
         </button>
+        <button
+          className="menu-button"
+          onClick={() => {
+            setEditingStep(null);
+            setShowStepDialog(true);
+          }}
+        >
+          Добавить через форму
+        </button>
         <button className="menu-button" disabled={!selectedStepId} onClick={handleDeleteStep}>
           Удалить выбранное
         </button>
@@ -400,6 +428,19 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         >
           Детали
         </button>
+        <div className="inline-actions">
+          <button
+            className="small-button"
+            onClick={() => {
+              if (!selectedStep) return;
+              setEditingStep(selectedStep);
+              setShowStepDialog(true);
+            }}
+            disabled={!selectedStep}
+          >
+            Редактировать шаг
+          </button>
+        </div>
       </div>
 
       {activeTab === 'subtasks' && (
@@ -545,6 +586,33 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
             ))}
         </div>
       </div>
+      {showStepDialog && (
+        <StepDialog
+          initial={editingStep ?? undefined}
+          pms={pmDirectory}
+          onSave={async (payload) =>
+            handleStepDialogSave({
+              project_id: project.id,
+              ...payload
+            })
+          }
+          onDelete={
+            editingStep
+              ? async () => {
+                  await deleteStep(editingStep.id);
+                  setSteps((prev) => prev.filter((s) => s.id !== editingStep.id));
+                  setSelectedStepId(null);
+                  setActionMessage('Шаг удалён.');
+                  setActionTone('warning');
+                }
+              : undefined
+          }
+          onClose={() => {
+            setShowStepDialog(false);
+            setEditingStep(null);
+          }}
+        />
+      )}
     </section>
   );
 };
