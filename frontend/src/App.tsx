@@ -17,6 +17,11 @@ const App: React.FC = () => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [workspacePath, setWorkspacePath] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
+    const stored = window.localStorage.getItem('theme');
+    return stored === 'dark' ? 'dark' : 'light';
+  });
   const projectFilterRef = useRef<HTMLInputElement | null>(null);
   const seedProjects = useMemo(
     () => seedCategories.flatMap((c) => c.projects.map((p) => ({ ...p, category_id: c.id }))),
@@ -94,6 +99,11 @@ const App: React.FC = () => {
       isMounted = false;
     };
   }, [error, pmDirectory, projectFilter, selectedCategoryId, seedProjects]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -187,6 +197,8 @@ const App: React.FC = () => {
         onExportCategories={handleExportCategories}
         onOpenPmDirectory={() => setShowPmDirectory(true)}
         onOpenKpi={handleOpenKpi}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
       />
 
       <div className="layout">

@@ -8,6 +8,8 @@ interface Props {
   onExportCategories: () => void;
   onOpenPmDirectory: () => void;
   onOpenKpi: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const TopMenu: React.FC<Props> = ({
@@ -17,7 +19,9 @@ const TopMenu: React.FC<Props> = ({
   onWorkspace,
   onExportCategories,
   onOpenPmDirectory,
-  onOpenKpi
+  onOpenKpi,
+  theme,
+  onToggleTheme
 }) => {
   return (
     <header className="top-menu">
@@ -39,6 +43,9 @@ const TopMenu: React.FC<Props> = ({
         </button>
         <button className="menu-button" onClick={onOpenPmDirectory}>
           Справочник PM
+        </button>
+        <button className="menu-button" onClick={onToggleTheme}>
+          Тема: {theme === 'light' ? 'Светлая' : 'Тёмная'}
         </button>
       </div>
       <div className="menu-actions">
