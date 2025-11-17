@@ -260,12 +260,12 @@ const App: React.FC = () => {
   };
 
   const openCategoryDialog = (category: Category | null) => {
-    setEditingCategory(category ?? null);
+    setEditingCategory((category ?? null) as unknown as Category);
     setShowCategoryDialog(true);
   };
 
   const openProjectDialog = (project: Project | null) => {
-    setEditingProject(project ?? null);
+    setEditingProject((project ?? null) as unknown as Project);
     setShowProjectDialog(true);
   };
 
@@ -299,12 +299,12 @@ const App: React.FC = () => {
             projectFilterRef={projectFilterRef}
             onEditCategory={openCategoryDialog}
             onDeleteCategory={(category) => {
-              setEditingCategory(category);
+              setEditingCategory(category as unknown as Category);
               setShowCategoryDialog(true);
             }}
             onEditProject={openProjectDialog}
             onDeleteProject={(project) => {
-              setEditingProject(project);
+              setEditingProject(project as unknown as Project);
               setShowProjectDialog(true);
             }}
           />
