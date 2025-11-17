@@ -237,9 +237,9 @@ class BulkProjectStatusUpdate(BaseModel):
     ids: List[int] = Field(..., min_length=1, description="Project IDs to update")
     status: ProjectStatus
 
-    @field_validator("status")
+    @field_validator("status", mode="before")
     @classmethod
-    def disallow_empty_status(cls, value: ProjectStatus) -> ProjectStatus:
+    def disallow_empty_status(cls, value: ProjectStatus | None) -> ProjectStatus:
         if value is None:
             raise ValueError("Status is required")
         return value
