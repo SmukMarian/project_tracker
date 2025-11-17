@@ -64,6 +64,51 @@ def update_workspace(payload: schemas.WorkspaceUpdate):
     return schemas.WorkspaceState(path=str(path))
 
 
+@app.get("/updates/manifest", response_model=schemas.UpdateManifest)
+def get_update_manifest():
+    workspace = get_workspace_path()
+    manifest_path = workspace / "updates" / "manifest.json"
+    if not manifest_path.exists():
+        raise HTTPException(status_code=404, detail="Update manifest not found")
+    try:
+        data = manifest_path.read_text(encoding="utf-8")
+        return schemas.UpdateManifest.parse_raw(data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Manifest file is not valid JSON")
+
+
+@app.post("/updates/manifest", response_model=schemas.UpdateManifest)
+def set_update_manifest(manifest: schemas.UpdateManifest):
+    workspace = get_workspace_path()
+    updates_dir = workspace / "updates"
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = updates_dir / "manifest.json"
+    manifest_path.write_text(manifest.json(ensure_ascii=False, indent=2), encoding="utf-8")
+    LOGGER.info("Update manifest saved to %s", manifest_path)
+    return manifest
+
+
+@app.post("/updates/package")
+def upload_update_package(file: UploadFile = File(...)):
+    workspace = get_workspace_path()
+    updates_dir = workspace / "updates"
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    dest = updates_dir / file.filename
+    with dest.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    LOGGER.info("Uploaded update package to %s", dest)
+    return {"filename": file.filename, "url": f"/updates/download/{file.filename}"}
+
+
+@app.get("/updates/download/{filename}")
+def download_update_package(filename: str):
+    workspace = get_workspace_path()
+    file_path = workspace / "updates" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
+
 def _status_value(status: str, inprogress_coeff: float) -> float:
     mapping = {
         "done": 1.0,

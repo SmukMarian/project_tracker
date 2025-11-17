@@ -238,6 +238,14 @@ class WorkspaceUpdate(BaseModel):
     path: str
 
 
+class UpdateManifest(BaseModel):
+    version: str = Field(..., description="Application version (semver)")
+    download_url: Optional[str] = Field(
+        None, description="URL to download the installer or binary for the update"
+    )
+    notes: Optional[str] = Field(None, description="Release notes or changelog text")
+
+
 class KPIReport(BaseModel):
     total_projects: int
     active_projects: int

@@ -16,6 +16,13 @@ import threading
 import time
 from dataclasses import dataclass
 import logging
+import os
+import json
+import webbrowser
+from urllib.error import URLError
+from urllib.request import urlopen
+
+from packaging.version import Version, InvalidVersion
 
 import webview
 from uvicorn import Config, Server
@@ -28,9 +35,6 @@ BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8000
 APP_VERSION = os.environ.get("HPT_VERSION", "0.1.0")
 UPDATE_TIMEOUT = 3
-
-
-LOGGER = setup_logging(get_workspace_path() / "logs", name="desktop")
 
 
 LOGGER = setup_logging(get_workspace_path() / "logs", name="desktop")
