@@ -183,9 +183,23 @@ class Project(ProjectBase):
     characteristics: List[ProjectCharacteristic] = Field(default_factory=list)
     attachments: List[Attachment] = Field(default_factory=list)
     progress_percent: int = 0
+    steps_total: int = 0
+    steps_done: int = 0
+    subtasks_total: int = 0
+    subtasks_done: int = 0
 
     class Config:
         from_attributes = True
+
+class KPIReport(BaseModel):
+    total_projects: int
+    active_projects: int
+    archived_projects: int
+    average_progress: float
+    steps_total: int
+    steps_done: int
+    subtasks_total: int
+    subtasks_done: int
 
 
 class CategoryBase(BaseModel):
@@ -199,6 +213,9 @@ class CategoryCreate(CategoryBase):
 class Category(CategoryBase):
     id: int
     projects: List[Project] = Field(default_factory=list)
+    progress_percent: int = 0
+    average_progress: float = 0.0
+    kpi: KPIReport | None = None
 
     class Config:
         from_attributes = True
@@ -253,14 +270,3 @@ class UpdateManifest(BaseModel):
         description="Optional SHA-256 checksum (hex) of the referenced installer",
         pattern=r"^[a-fA-F0-9]{64}$",
     )
-
-
-class KPIReport(BaseModel):
-    total_projects: int
-    active_projects: int
-    archived_projects: int
-    average_progress: float
-    steps_total: int
-    steps_done: int
-    subtasks_total: int
-    subtasks_done: int

@@ -18,6 +18,7 @@ interface Props {
   project: Project;
   pmDirectory: PM[];
   workspacePath?: string;
+  onMetricsChanged?: () => void;
 }
 
 const statusLabel: Record<Step['status'], string> = {
@@ -27,7 +28,7 @@ const statusLabel: Record<Step['status'], string> = {
   done: 'Завершено'
 };
 
-const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) => {
+const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath, onMetricsChanged }) => {
   const [stepName, setStepName] = useState('');
   const [subtaskSearch, setSubtaskSearch] = useState('');
   const [subtaskStatusFilter, setSubtaskStatusFilter] = useState<Status | 'all'>('all');
@@ -58,6 +59,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
   const [showStepDialog, setShowStepDialog] = useState(false);
   const [editingStep, setEditingStep] = useState<Step | null>(null);
   const [showStepAttachments, setShowStepAttachments] = useState(false);
+  const notifyMetrics = () => onMetricsChanged?.();
 
   useEffect(() => {
     setSteps(project.steps);
@@ -292,6 +294,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
         setSelectedStepId(created.id);
         setActionTone('info');
         setActionMessage('Шаг сохранён через API.');
+        notifyMetrics();
       } catch (err) {
         setActionTone('warning');
         setActionMessage('API шагов недоступно, шаг добавлен локально.');
@@ -308,12 +311,14 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
       setSelectedStepId(updated.id);
       setActionMessage('Шаг обновлён.');
       setActionTone('info');
+      notifyMetrics();
     } else {
       const created = await createStep(payload);
       setSteps((prev) => [...prev, created]);
       setSelectedStepId(created.id);
       setActionMessage('Шаг создан.');
       setActionTone('info');
+      notifyMetrics();
     }
   };
 
@@ -337,6 +342,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
         await deleteStep(target.id);
         setActionTone('info');
         setActionMessage('Шаг удалён через API.');
+        notifyMetrics();
       } catch (err) {
         setActionTone('warning');
         setActionMessage('API шагов недоступно, удаление выполнено только локально.');
@@ -385,6 +391,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
         setSelectedSubtaskId(created.id);
         setActionTone('info');
         setActionMessage('Подзадача сохранена через API.');
+        notifyMetrics();
       } catch (err) {
         setActionTone('warning');
         setActionMessage('API подзадач недоступно, подзадача добавлена локально.');
@@ -410,6 +417,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
         await deleteSubtask(selected.id);
         setActionTone('info');
         setActionMessage('Подзадача удалена через API.');
+        notifyMetrics();
       } catch (err) {
         setActionTone('warning');
         setActionMessage('API подзадач недоступно, удаление выполнено локально.');
@@ -441,6 +449,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
         setSubtasks((prev) => prev.map((st) => (st.id === updated.id ? { ...st, ...updated } : st)));
         setActionTone('info');
         setActionMessage('Подзадача сохранена через API.');
+        notifyMetrics();
       } catch (err) {
         setActionTone('warning');
         setActionMessage('API подзадач недоступно, изменения сохранены локально.');
