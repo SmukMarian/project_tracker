@@ -2,7 +2,7 @@ from datetime import date
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TaskStatus(str, Enum):
@@ -35,8 +35,7 @@ class AttachmentCreate(AttachmentBase):
 class Attachment(AttachmentBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectCharacteristicBase(BaseModel):
@@ -57,8 +56,7 @@ class ProjectCharacteristic(ProjectCharacteristicBase):
     id: int
     project_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectCharacteristicImport(BaseModel):
@@ -95,8 +93,7 @@ class Subtask(SubtaskBase):
     id: int
     step_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StepBase(BaseModel):
@@ -135,8 +132,7 @@ class Step(StepBase):
     subtasks: List[Subtask] = Field(default_factory=list)
     progress_percent: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectBase(BaseModel):
@@ -188,8 +184,7 @@ class Project(ProjectBase):
     subtasks_total: int = 0
     subtasks_done: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class KPIReport(BaseModel):
     total_projects: int
@@ -217,8 +212,7 @@ class Category(CategoryBase):
     average_progress: float = 0.0
     kpi: KPIReport | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PMBase(BaseModel):
@@ -232,8 +226,7 @@ class PMCreate(PMBase):
 class PM(PMBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BulkDeleteRequest(BaseModel):
@@ -244,7 +237,8 @@ class BulkProjectStatusUpdate(BaseModel):
     ids: List[int] = Field(..., min_length=1, description="Project IDs to update")
     status: ProjectStatus
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def disallow_empty_status(cls, value: ProjectStatus) -> ProjectStatus:
         if value is None:
             raise ValueError("Status is required")
