@@ -247,7 +247,7 @@ class UpdateManifest(BaseModel):
     sha256: Optional[str] = Field(
         None,
         description="Optional SHA-256 checksum (hex) of the referenced installer",
-        regex=r"^[a-fA-F0-9]{64}$",
+        pattern=r"^[a-fA-F0-9]{64}$",
     )
 
 
