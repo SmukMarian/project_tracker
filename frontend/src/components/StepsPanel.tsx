@@ -6,7 +6,8 @@ import {
   deleteSubtask,
   fetchSteps,
   fetchSubtasks,
-  updateStep
+  updateStep,
+  updateSubtask
 } from '../api';
 import AttachmentModal from './AttachmentModal';
 import StepDialog from './StepDialog';
@@ -41,6 +42,15 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
   const [loadingSubtasks, setLoadingSubtasks] = useState(false);
   const [subtaskError, setSubtaskError] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>(project.steps[0]?.subtasks ?? []);
+  const [selectedSubtaskId, setSelectedSubtaskId] = useState<number | null>(
+    project.steps[0]?.subtasks[0]?.id ?? null
+  );
+  const [subtaskName, setSubtaskName] = useState('');
+  const [subtaskStatus, setSubtaskStatus] = useState<Status>('todo');
+  const [subtaskAssignee, setSubtaskAssignee] = useState<number | 'unassigned'>('unassigned');
+  const [subtaskTargetDate, setSubtaskTargetDate] = useState('');
+  const [subtaskWeight, setSubtaskWeight] = useState('1');
+  const [subtaskComment, setSubtaskComment] = useState('');
   const [stepComments, setStepComments] = useState(project.steps[0]?.comments ?? '');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionTone, setActionTone] = useState<'info' | 'warning'>('info');
@@ -55,6 +65,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
     setSubtaskStatusFilter('all');
     setStepError(null);
     setSubtaskError(null);
+    setSelectedSubtaskId(project.steps[0]?.subtasks[0]?.id ?? null);
     setStepComments(project.steps[0]?.comments ?? '');
   }, [project.id, project.steps]);
 
@@ -115,6 +126,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
   useEffect(() => {
     if (!selectedStepId || !selectedStep) {
       setSubtasks([]);
+      setSelectedSubtaskId(null);
       return;
     }
     let isMounted = true;
@@ -133,10 +145,19 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
           setSubtasks(selectedStep.subtasks);
           setSubtaskError('Нет данных от API, показаны локальные подзадачи.');
         }
+        setSelectedSubtaskId((prev) => {
+          const collection = fetched.length ? fetched : selectedStep.subtasks;
+          if (prev && collection.some((st) => st.id === prev)) return prev;
+          return collection[0]?.id ?? null;
+        });
       } catch (err) {
         if (!isMounted) return;
         setSubtasks(selectedStep.subtasks);
         setSubtaskError('API подзадач недоступно, показаны локальные данные.');
+        setSelectedSubtaskId((prev) => {
+          if (prev && selectedStep.subtasks.some((st) => st.id === prev)) return prev;
+          return selectedStep.subtasks[0]?.id ?? null;
+        });
       } finally {
         if (!isMounted) return;
         setLoadingSubtasks(false);
@@ -155,6 +176,38 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
     );
   }, [selectedStepId, subtasks]);
 
+  useEffect(() => {
+    if (!subtasks.length) {
+      setSelectedSubtaskId(null);
+      return;
+    }
+    const hasCurrent = subtasks.some((st) => st.id === selectedSubtaskId);
+    if (!hasCurrent) {
+      setSelectedSubtaskId(subtasks[0].id);
+    }
+  }, [selectedSubtaskId, subtasks]);
+
+  const selectedSubtask =
+    subtasks.find((st) => st.id === selectedSubtaskId) ?? subtasks[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedSubtask) {
+      setSubtaskName('');
+      setSubtaskStatus('todo');
+      setSubtaskAssignee('unassigned');
+      setSubtaskTargetDate('');
+      setSubtaskWeight('1');
+      setSubtaskComment('');
+      return;
+    }
+    setSubtaskName(selectedSubtask.name);
+    setSubtaskStatus(selectedSubtask.status);
+    setSubtaskAssignee(selectedSubtask.assignee_id ?? 'unassigned');
+    setSubtaskTargetDate(selectedSubtask.target_date ?? '');
+    setSubtaskWeight(String(selectedSubtask.weight ?? 1));
+    setSubtaskComment(selectedSubtask.comment ?? '');
+  }, [selectedSubtask, selectedSubtaskId]);
+
   const filteredSubtasks = useMemo(() => {
     const parsed = parseTokens(subtaskSearch);
     return subtasks.filter((st) => {
@@ -164,6 +217,8 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
       const matchesStatus = parsed.status
         ? st.status.toLowerCase() === parsed.status.toLowerCase()
         : true;
+      const matchesStatusFilter =
+        subtaskStatusFilter === 'all' ? true : st.status === subtaskStatusFilter;
       const matchesWeight = parsed.weightValue
         ? parsed.weightComparator === '>'
           ? st.weight > parsed.weightValue
@@ -171,9 +226,9 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
           ? st.weight < parsed.weightValue
           : st.weight === parsed.weightValue
         : true;
-      return matchesText && matchesStatus && matchesWeight;
+      return matchesText && matchesStatus && matchesStatusFilter && matchesWeight;
     });
-  }, [subtasks, subtaskSearch]);
+  }, [subtaskSearch, subtaskStatusFilter, subtasks]);
 
   const pmName = (id?: number) => pmDirectory.find((pm) => pm.id === id)?.name ?? '—';
 
@@ -309,6 +364,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
         }
       ];
     });
+    setSelectedSubtaskId(tempId);
 
     const persist = async () => {
       try {
@@ -322,6 +378,7 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
           comment: ''
         });
         setSubtasks((prev) => prev.map((st) => (st.id === tempId ? { ...st, ...created } : st)));
+        setSelectedSubtaskId(created.id);
         setActionTone('info');
         setActionMessage('Подзадача сохранена через API.');
       } catch (err) {
@@ -334,9 +391,15 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
   };
 
   const handleDeleteSubtask = () => {
-    const selected = filteredSubtasks[0];
+    const selected =
+      subtasks.find((st) => st.id === selectedSubtaskId) ?? filteredSubtasks[0];
     if (!selected) return;
     setSubtasks((prev) => prev.filter((st) => st.id !== selected.id));
+    setSelectedSubtaskId((prev) => {
+      if (prev !== selected.id && prev !== null) return prev;
+      const remaining = subtasks.filter((st) => st.id !== selected.id);
+      return remaining[0]?.id ?? null;
+    });
 
     const persist = async () => {
       try {
@@ -346,6 +409,36 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
       } catch (err) {
         setActionTone('warning');
         setActionMessage('API подзадач недоступно, удаление выполнено локально.');
+      }
+    };
+
+    persist();
+  };
+
+  const handleUpdateSubtask = () => {
+    if (!selectedSubtask) return;
+    const payload = {
+      name: subtaskName,
+      status: subtaskStatus,
+      assignee_id: subtaskAssignee === 'unassigned' ? undefined : subtaskAssignee,
+      target_date: subtaskTargetDate || undefined,
+      weight:
+        subtaskWeight !== '' && Number.isFinite(Number(subtaskWeight))
+          ? Number(subtaskWeight)
+          : 1,
+      comment: subtaskComment
+    };
+    setSubtasks((prev) => prev.map((st) => (st.id === selectedSubtask.id ? { ...st, ...payload } : st)));
+
+    const persist = async () => {
+      try {
+        const updated = await updateSubtask(selectedSubtask.id, payload);
+        setSubtasks((prev) => prev.map((st) => (st.id === updated.id ? { ...st, ...updated } : st)));
+        setActionTone('info');
+        setActionMessage('Подзадача сохранена через API.');
+      } catch (err) {
+        setActionTone('warning');
+        setActionMessage('API подзадач недоступно, изменения сохранены локально.');
       }
     };
 
@@ -498,7 +591,11 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
             </div>
             <div className="subtask-body">
               {filteredSubtasks.map((st: Subtask) => (
-                <div key={st.id} className={`subtask-row status-${st.status}`}>
+                <div
+                  key={st.id}
+                  className={`subtask-row status-${st.status} ${selectedSubtaskId === st.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedSubtaskId(st.id)}
+                >
                   <span>{st.id}</span>
                   <span className="ellipsis" title={st.name}>
                     {st.name}
@@ -514,6 +611,86 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory, workspacePath }) =>
               ))}
             </div>
           </div>
+          {selectedSubtask && (
+            <div className="subtask-editor">
+              <div className="grid two-columns">
+                <label>
+                  Название
+                  <input
+                    className="input"
+                    value={subtaskName}
+                    onChange={(e) => setSubtaskName(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Статус
+                  <select
+                    className="input select"
+                    value={subtaskStatus}
+                    onChange={(e) => setSubtaskStatus(e.target.value as Status)}
+                  >
+                    <option value="todo">Не начато</option>
+                    <option value="in_progress">В работе</option>
+                    <option value="blocked">Заблокировано</option>
+                    <option value="done">Завершено</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid three-columns">
+                <label>
+                  Исполнитель
+                  <select
+                    className="input select"
+                    value={subtaskAssignee}
+                    onChange={(e) =>
+                      setSubtaskAssignee(
+                        e.target.value === 'unassigned' ? 'unassigned' : Number(e.target.value)
+                      )
+                    }
+                  >
+                    <option value="unassigned">Не указан</option>
+                    {pmDirectory.map((pm) => (
+                      <option key={pm.id} value={pm.id}>
+                        {pm.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Целевая дата
+                  <input
+                    type="date"
+                    className="input"
+                    value={subtaskTargetDate}
+                    onChange={(e) => setSubtaskTargetDate(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Вес
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="input"
+                    value={subtaskWeight}
+                    onChange={(e) => setSubtaskWeight(e.target.value)}
+                  />
+                </label>
+              </div>
+              <label>
+                Комментарий
+                <textarea
+                  className="textarea"
+                  value={subtaskComment}
+                  onChange={(e) => setSubtaskComment(e.target.value)}
+                />
+              </label>
+              <div className="actions align-end">
+                <button className="menu-button" onClick={handleUpdateSubtask} disabled={!subtaskName}>
+                  Сохранить подзадачу
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

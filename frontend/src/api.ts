@@ -236,6 +236,21 @@ export async function createSubtask(payload: SubtaskCreatePayload): Promise<Subt
   return (await res.json()) as Subtask;
 }
 
+export async function updateSubtask(
+  subtaskId: number,
+  payload: Partial<SubtaskCreatePayload>
+): Promise<Subtask> {
+  const res = await fetch(`${API_BASE}/subtasks/${subtaskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to update subtask');
+  }
+  return (await res.json()) as Subtask;
+}
+
 export async function deleteSubtask(subtaskId: number): Promise<void> {
   const res = await fetch(`${API_BASE}/subtasks/${subtaskId}`, { method: 'DELETE' });
   if (!res.ok) {

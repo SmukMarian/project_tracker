@@ -13,6 +13,7 @@ export interface Subtask {
   status: Status;
   assignee_id?: number;
   target_date?: string;
+  completed_date?: string;
   weight: number;
   order_index: number;
   comment?: string;
