@@ -8,7 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
+from docx import Document
 from openpyxl import Workbook, load_workbook
+from pptx import Presentation
+from pptx.util import Inches
 
 from .config import get_workspace_path, set_workspace_path
 from . import models, schemas
@@ -93,6 +96,15 @@ def _workbook_response(wb: Workbook, filename: str) -> StreamingResponse:
     )
 
 
+def _binary_response(buffer: BytesIO, media_type: str, filename: str) -> StreamingResponse:
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 def _export_categories_excel(db: Session) -> StreamingResponse:
     categories = (
         db.query(models.Category)
@@ -146,6 +158,133 @@ def _export_categories_excel(db: Session) -> StreamingResponse:
     return _workbook_response(wb, "categories.xlsx")
 
 
+def _kpi_report(db: Session, category_id: Optional[int] = None) -> schemas.KPIReport:
+    projects_query = db.query(models.Project).options(
+        joinedload(models.Project.steps).joinedload(models.Step.subtasks)
+    )
+    if category_id is not None:
+        projects_query = projects_query.filter(models.Project.category_id == category_id)
+    projects = projects_query.all()
+
+    total_projects = len(projects)
+    active_projects = len([p for p in projects if p.status == schemas.ProjectStatus.ACTIVE])
+    archived_projects = len([p for p in projects if p.status == schemas.ProjectStatus.ARCHIVED])
+
+    total_progress = 0
+    steps_total = 0
+    steps_done = 0
+    subtasks_total = 0
+    subtasks_done = 0
+
+    for project in projects:
+        _apply_progress(project)
+        total_progress += project.progress_percent
+        for step in project.steps:
+            steps_total += 1
+            if step.status == schemas.TaskStatus.DONE:
+                steps_done += 1
+            for subtask in step.subtasks:
+                subtasks_total += 1
+                if subtask.status == schemas.TaskStatus.DONE:
+                    subtasks_done += 1
+
+    average_progress = round(total_progress / total_projects, 2) if total_projects else 0.0
+    return schemas.KPIReport(
+        total_projects=total_projects,
+        active_projects=active_projects,
+        archived_projects=archived_projects,
+        average_progress=average_progress,
+        steps_total=steps_total,
+        steps_done=steps_done,
+        subtasks_total=subtasks_total,
+        subtasks_done=subtasks_done,
+    )
+
+
+def _export_projects_word(db: Session, category_id: Optional[int] = None) -> StreamingResponse:
+    query = (
+        db.query(models.Project)
+        .options(
+            joinedload(models.Project.category),
+            joinedload(models.Project.steps).joinedload(models.Step.subtasks),
+        )
+        .order_by(models.Project.start_date.is_(None), models.Project.start_date)
+    )
+    if category_id is not None:
+        query = query.filter(models.Project.category_id == category_id)
+    projects = query.all()
+
+    doc = Document()
+    doc.add_heading("Проекты Haier", level=0)
+    if category_id is not None:
+        category = db.query(models.Category).filter(models.Category.id == category_id).first()
+        if category:
+            doc.add_paragraph(f"Категория: {category.name}")
+
+    for project in projects:
+        _apply_progress(project)
+        doc.add_heading(f"{project.name} ({project.code or 'без кода'})", level=1)
+        doc.add_paragraph(f"Статус: {project.status}")
+        if project.owner_id:
+            doc.add_paragraph(f"PM: {project.owner_id}")
+        if project.start_date or project.target_date:
+            doc.add_paragraph(f"Период: {project.start_date or '-'} → {project.target_date or '-'}")
+        doc.add_paragraph(f"Прогресс: {project.progress_percent}%")
+        if project.description:
+            doc.add_paragraph(project.description)
+        if project.steps:
+            doc.add_paragraph("Шаги:")
+            for step in project.steps:
+                doc.add_paragraph(
+                    f"- {step.name} — {step.status} ({step.progress_percent}% по шагу)", style="List Bullet"
+                )
+
+    stream = BytesIO()
+    doc.save(stream)
+    return _binary_response(stream, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "projects.docx")
+
+
+def _export_category_presentation(db: Session, category_id: int) -> StreamingResponse:
+    category = (
+        db.query(models.Category)
+        .options(joinedload(models.Category.projects).joinedload(models.Project.steps))
+        .filter(models.Category.id == category_id)
+        .first()
+    )
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    prs = Presentation()
+    title_slide_layout = prs.slide_layouts[0]
+    slide = prs.slides.add_slide(title_slide_layout)
+    slide.shapes.title.text = f"Категория: {category.name}"
+    subtitle = slide.placeholders[1]
+    subtitle.text = "Презентация проектов"
+
+    bullet_layout = prs.slide_layouts[1]
+    for project in category.projects:
+        _apply_progress(project)
+        slide = prs.slides.add_slide(bullet_layout)
+        slide.shapes.title.text = project.name
+        body = slide.shapes.placeholders[1].text_frame
+        body.text = f"Код: {project.code or '-'}"
+        body.add_paragraph().text = f"Статус: {project.status}"
+        body.add_paragraph().text = f"PM: {project.owner_id or '-'}"
+        body.add_paragraph().text = f"Прогресс: {project.progress_percent}%"
+        if project.target_date:
+            body.add_paragraph().text = f"Целевая дата: {project.target_date}"
+        if project.steps:
+            steps_paragraph = body.add_paragraph("Шаги:")
+            steps_paragraph.level = 0
+            for step in project.steps:
+                p = body.add_paragraph(f"• {step.name} — {step.status}")
+                p.level = 1
+
+    stream = BytesIO()
+    prs.save(stream)
+    return _binary_response(stream, "application/vnd.openxmlformats-officedocument.presentationml.presentation", "category.pptx")
+
+
 def _load_project_with_steps(project_id: int, db: Session) -> models.Project:
     project = (
         db.query(models.Project)
@@ -178,6 +317,21 @@ def list_categories(db: Session = Depends(get_db)):
 @app.get("/export/categories/excel")
 def export_categories_excel(db: Session = Depends(get_db)):
     return _export_categories_excel(db)
+
+
+@app.get("/export/projects/word")
+def export_projects_word(category_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    return _export_projects_word(db, category_id)
+
+
+@app.get("/export/category/{category_id}/presentation")
+def export_category_presentation(category_id: int, db: Session = Depends(get_db)):
+    return _export_category_presentation(db, category_id)
+
+
+@app.get("/kpi", response_model=schemas.KPIReport)
+def kpi_report(category_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    return _kpi_report(db, category_id)
 
 
 @app.post("/pms", response_model=schemas.PM)

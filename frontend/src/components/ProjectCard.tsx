@@ -4,9 +4,11 @@ import { PM, Project } from '../types';
 interface Props {
   project: Project;
   pmDirectory: PM[];
+  onExportWord: () => void;
+  onExportPresentation: () => void;
 }
 
-const ProjectCard: React.FC<Props> = ({ project, pmDirectory }) => {
+const ProjectCard: React.FC<Props> = ({ project, pmDirectory, onExportWord, onExportPresentation }) => {
   const owner = pmDirectory.find((pm) => pm.id === project.owner_id);
   const projectStatusLabel: Record<Project['status'], string> = {
     active: 'Active',
@@ -55,9 +57,15 @@ const ProjectCard: React.FC<Props> = ({ project, pmDirectory }) => {
           <button className="menu-button">Изменить карточку…</button>
           <button className="menu-button">Характеристики…</button>
           <button className="menu-button">Медиатека</button>
-          <button className="menu-button">Excel</button>
-          <button className="menu-button">Word</button>
-          <button className="menu-button">Презентация категории</button>
+          <button className="menu-button" onClick={() => window.open('http://localhost:8000/export/categories/excel', '_blank')}>
+            Excel
+          </button>
+          <button className="menu-button" onClick={onExportWord}>
+            Word
+          </button>
+          <button className="menu-button" onClick={onExportPresentation}>
+            Презентация категории
+          </button>
         </div>
       </div>
     </section>

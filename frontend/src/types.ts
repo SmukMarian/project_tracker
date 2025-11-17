@@ -63,3 +63,14 @@ export interface Category {
 export interface WorkspaceState {
   path: string;
 }
+
+export interface KpiReport {
+  total_projects: number;
+  active_projects: number;
+  archived_projects: number;
+  average_progress: number;
+  steps_total: number;
+  steps_done: number;
+  subtasks_total: number;
+  subtasks_done: number;
+}

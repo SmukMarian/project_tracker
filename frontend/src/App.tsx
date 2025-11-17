@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchCategories, fetchPMs, fetchProjects, fetchWorkspace, setWorkspace } from './api';
+import { fetchCategories, fetchKpi, fetchPMs, fetchProjects, fetchWorkspace, setWorkspace } from './api';
 import LeftPanel from './components/LeftPanel';
 import PmDirectory from './components/PmDirectory';
 import ProjectCard from './components/ProjectCard';
 import StepsPanel from './components/StepsPanel';
 import TopMenu from './components/TopMenu';
+import KpiModal from './components/KpiModal';
 import { categories as seedCategories, pms as seedPMs } from './data';
-import { Category, Project } from './types';
+import { Category, KpiReport, Project } from './types';
 
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -27,6 +28,8 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showPmDirectory, setShowPmDirectory] = useState(false);
+  const [showKpi, setShowKpi] = useState(false);
+  const [kpiData, setKpiData] = useState<KpiReport | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -136,6 +139,27 @@ const App: React.FC = () => {
     window.open('http://localhost:8000/export/categories/excel', '_blank');
   };
 
+  const handleExportWord = () => {
+    const query = selectedCategoryId ? `?category_id=${selectedCategoryId}` : '';
+    window.open(`http://localhost:8000/export/projects/word${query}`, '_blank');
+  };
+
+  const handleExportPresentation = () => {
+    if (!selectedCategoryId) return;
+    window.open(`http://localhost:8000/export/category/${selectedCategoryId}/presentation`, '_blank');
+  };
+
+  const handleOpenKpi = async () => {
+    try {
+      const data = await fetchKpi(selectedCategoryId ?? undefined);
+      setKpiData(data);
+      setShowKpi(true);
+      setError(null);
+    } catch (err) {
+      setError('Не удалось загрузить KPI.');
+    }
+  };
+
   return (
     <div className="app">
       <TopMenu
@@ -145,6 +169,7 @@ const App: React.FC = () => {
         onWorkspace={handleWorkspace}
         onExportCategories={handleExportCategories}
         onOpenPmDirectory={() => setShowPmDirectory(true)}
+        onOpenKpi={handleOpenKpi}
       />
 
       <div className="layout">
@@ -169,7 +194,12 @@ const App: React.FC = () => {
           {error && <div className="info warning">{error}</div>}
           {selectedProject ? (
             <>
-              <ProjectCard project={selectedProject} pmDirectory={pmDirectory} />
+              <ProjectCard
+                project={selectedProject}
+                pmDirectory={pmDirectory}
+                onExportWord={handleExportWord}
+                onExportPresentation={handleExportPresentation}
+              />
               <StepsPanel project={selectedProject} pmDirectory={pmDirectory} />
             </>
           ) : (
@@ -180,6 +210,7 @@ const App: React.FC = () => {
       {showPmDirectory && (
         <PmDirectory pms={pmDirectory} onClose={() => setShowPmDirectory(false)} />
       )}
+      {showKpi && kpiData && <KpiModal data={kpiData} onClose={() => setShowKpi(false)} />}
     </div>
   );
 };

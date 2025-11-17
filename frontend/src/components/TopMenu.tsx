@@ -7,6 +7,7 @@ interface Props {
   onWorkspace: () => void;
   onExportCategories: () => void;
   onOpenPmDirectory: () => void;
+  onOpenKpi: () => void;
 }
 
 const TopMenu: React.FC<Props> = ({
@@ -15,7 +16,8 @@ const TopMenu: React.FC<Props> = ({
   onNewProject,
   onWorkspace,
   onExportCategories,
-  onOpenPmDirectory
+  onOpenPmDirectory,
+  onOpenKpi
 }) => {
   return (
     <header className="top-menu">
@@ -32,7 +34,9 @@ const TopMenu: React.FC<Props> = ({
         <button className="menu-button" onClick={onExportCategories}>
           Экспорт категорий (Excel)
         </button>
-        <button className="menu-button">KPI</button>
+        <button className="menu-button" onClick={onOpenKpi}>
+          KPI
+        </button>
         <button className="menu-button" onClick={onOpenPmDirectory}>
           Справочник PM
         </button>

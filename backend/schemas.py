@@ -236,3 +236,14 @@ class WorkspaceState(BaseModel):
 
 class WorkspaceUpdate(BaseModel):
     path: str
+
+
+class KPIReport(BaseModel):
+    total_projects: int
+    active_projects: int
+    archived_projects: int
+    average_progress: float
+    steps_total: int
+    steps_done: int
+    subtasks_total: int
+    subtasks_done: int

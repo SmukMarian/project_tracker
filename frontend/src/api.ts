@@ -1,4 +1,4 @@
-import { Category, PM, Project, Step, Subtask, WorkspaceState } from './types';
+import { Category, KpiReport, PM, Project, Step, Subtask, WorkspaceState } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -76,4 +76,11 @@ export async function fetchSubtasks(
     ? `/steps/${stepId}/subtasks?${params.toString()}`
     : `/steps/${stepId}/subtasks`;
   return getJson<Subtask[]>(suffix);
+}
+
+export async function fetchKpi(categoryId?: number): Promise<KpiReport> {
+  const params = new URLSearchParams();
+  if (categoryId) params.set('category_id', String(categoryId));
+  const suffix = params.toString() ? `/kpi?${params.toString()}` : '/kpi';
+  return getJson<KpiReport>(suffix);
 }
