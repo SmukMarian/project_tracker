@@ -34,5 +34,4 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 - KPI-отчёт `/kpi` по всем или выбранной категории.
 
 ## Next steps
-1. Завести канал доставки обновлений (хостинг манифеста и бинарников) и проверить автообновление десктопа end-to-end.
-2. Покрыть сборку инсталлятора (PyInstaller + NSIS) и запуск desktop-обёртки автоматическими smoke-тестами.
+1. Упаковать desktop-обёртку в инсталлятор и добавить автообновления.
