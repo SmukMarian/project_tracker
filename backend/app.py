@@ -1,4 +1,5 @@
 from io import BytesIO
+import logging
 from pathlib import Path
 from datetime import date
 from pathlib import Path
@@ -19,10 +20,13 @@ from pptx.util import Inches
 from .config import get_workspace_path, set_workspace_path
 from . import models, schemas
 from .database import Base, SessionLocal, engine
+from .logging_utils import setup_logging
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Haier Project Tracker API")
+
+LOGGER = setup_logging(get_workspace_path() / "logs")
 
 DIST_DIR = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 if DIST_DIR.exists():
@@ -55,6 +59,8 @@ def get_workspace():
 @app.post("/workspace", response_model=schemas.WorkspaceState)
 def update_workspace(payload: schemas.WorkspaceUpdate):
     path = set_workspace_path(payload.path)
+    setup_logging(path / "logs")
+    LOGGER.info("Workspace updated to %s", path)
     return schemas.WorkspaceState(path=str(path))
 
 
@@ -789,6 +795,12 @@ def create_attachment(attachment: schemas.AttachmentCreate, db: Session = Depend
     db.add(db_attachment)
     db.commit()
     db.refresh(db_attachment)
+    LOGGER.info(
+        "Attachment record created: path=%s project_id=%s step_id=%s",
+        db_attachment.path,
+        db_attachment.project_id,
+        db_attachment.step_id,
+    )
     return db_attachment
 
 
@@ -820,6 +832,14 @@ async def upload_attachment(
 
     relative_path = destination.relative_to(workspace)
 
+    LOGGER.info(
+        "Attachment uploaded: filename=%s stored_as=%s project_id=%s step_id=%s",
+        file.filename,
+        relative_path,
+        project_id,
+        step_id,
+    )
+
     db_attachment = models.Attachment(
         path=str(relative_path),
         project_id=project_id,
@@ -837,6 +857,13 @@ def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
     attachment = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
     if attachment is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    LOGGER.info(
+        "Attachment removed: id=%s path=%s project_id=%s step_id=%s",
+        attachment_id,
+        attachment.path,
+        attachment.project_id,
+        attachment.step_id,
+    )
     db.delete(attachment)
     db.commit()
 
