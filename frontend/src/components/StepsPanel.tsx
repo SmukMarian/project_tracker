@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchSteps, fetchSubtasks } from '../api';
+import {
+  createStep,
+  createSubtask,
+  deleteStep,
+  deleteSubtask,
+  fetchSteps,
+  fetchSubtasks,
+  updateStep
+} from '../api';
 import { parseTokens } from '../search';
 import { PM, Project, Step, Status, Subtask } from '../types';
 
@@ -31,6 +39,8 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
   const [subtaskError, setSubtaskError] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>(project.steps[0]?.subtasks ?? []);
   const [stepComments, setStepComments] = useState(project.steps[0]?.comments ?? '');
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionTone, setActionTone] = useState<'info' | 'warning'>('info');
 
   useEffect(() => {
     setSteps(project.steps);
@@ -182,33 +192,55 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
 
   const handleAddStep = () => {
     if (!stepName.trim()) return;
-    let newId = 1;
-    setSteps((prev) => {
-      const maxId = prev.reduce((acc, s) => Math.max(acc, s.id), 0);
-      newId = maxId + 1;
-      const newStep: Step = {
-        id: newId,
-        name: stepName.trim(),
-        status: 'todo',
-        assignee_id: undefined,
-        description: '',
-        start_date: undefined,
-        target_date: undefined,
-        completed_date: undefined,
-        weight: 1,
-        order_index: prev.length + 1,
-        comments: '',
-        subtasks: [],
-        progress_percent: 0
-      };
-      return [...prev, newStep];
-    });
+    const tempId = Date.now() * -1;
+    const optimisticStep: Step = {
+      id: tempId,
+      name: stepName.trim(),
+      status: 'todo',
+      assignee_id: undefined,
+      description: '',
+      start_date: undefined,
+      target_date: undefined,
+      completed_date: undefined,
+      weight: 1,
+      order_index: steps.length + 1,
+      comments: '',
+      subtasks: [],
+      progress_percent: 0
+    };
+    setSteps((prev) => [...prev, optimisticStep]);
     setStepName('');
-    setSelectedStepId(newId);
+    setSelectedStepId(tempId);
+
+    const persist = async () => {
+      try {
+        const created = await createStep({
+          project_id: project.id,
+          name: optimisticStep.name,
+          status: optimisticStep.status,
+          order_index: optimisticStep.order_index,
+          weight: optimisticStep.weight,
+          comments: optimisticStep.comments
+        });
+        setSteps((prev) =>
+          prev.map((s) => (s.id === tempId ? { ...created, subtasks: created.subtasks ?? [] } : s))
+        );
+        setSelectedStepId(created.id);
+        setActionTone('info');
+        setActionMessage('Шаг сохранён через API.');
+      } catch (err) {
+        setActionTone('warning');
+        setActionMessage('API шагов недоступно, шаг добавлен локально.');
+      }
+    };
+
+    persist();
   };
 
   const handleDeleteStep = () => {
     if (!selectedStepId) return;
+    const target = steps.find((s) => s.id === selectedStepId);
+    if (!target) return;
     setSteps((prev) => {
       const filtered = prev.filter((s) => s.id !== selectedStepId);
       return filtered.map((s, idx) => ({ ...s, order_index: idx + 1 }));
@@ -219,18 +251,32 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
       return remaining[0]?.id ?? null;
     });
     setSubtasks([]);
+
+    const persist = async () => {
+      try {
+        await deleteStep(target.id);
+        setActionTone('info');
+        setActionMessage('Шаг удалён через API.');
+      } catch (err) {
+        setActionTone('warning');
+        setActionMessage('API шагов недоступно, удаление выполнено только локально.');
+      }
+    };
+
+    persist();
   };
 
   const handleAddSubtask = () => {
     if (!selectedStep) return;
     const title = prompt('Название подзадачи');
     if (!title) return;
+    const tempId = Date.now() * -1;
     setSubtasks((prev) => {
       const maxId = prev.reduce((acc, st) => Math.max(acc, st.id), 0);
       return [
         ...prev,
         {
-          id: maxId + 1,
+          id: tempId || maxId + 1,
           name: title,
           status: 'todo',
           weight: 1,
@@ -241,12 +287,45 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
         }
       ];
     });
+
+    const persist = async () => {
+      try {
+        const created = await createSubtask({
+          step_id: selectedStep.id,
+          name: title,
+          status: 'todo',
+          order_index: subtasks.length + 1,
+          weight: 1
+        });
+        setSubtasks((prev) => prev.map((st) => (st.id === tempId ? { ...st, ...created } : st)));
+        setActionTone('info');
+        setActionMessage('Подзадача сохранена через API.');
+      } catch (err) {
+        setActionTone('warning');
+        setActionMessage('API подзадач недоступно, подзадача добавлена локально.');
+      }
+    };
+
+    persist();
   };
 
   const handleDeleteSubtask = () => {
     const selected = filteredSubtasks[0];
     if (!selected) return;
     setSubtasks((prev) => prev.filter((st) => st.id !== selected.id));
+
+    const persist = async () => {
+      try {
+        await deleteSubtask(selected.id);
+        setActionTone('info');
+        setActionMessage('Подзадача удалена через API.');
+      } catch (err) {
+        setActionTone('warning');
+        setActionMessage('API подзадач недоступно, удаление выполнено локально.');
+      }
+    };
+
+    persist();
   };
 
   return (
@@ -304,6 +383,9 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
 
       {loadingSteps && <div className="info">Загрузка шагов…</div>}
       {stepError && <div className="info warning">{stepError}</div>}
+      {actionMessage && (
+        <div className={`info ${actionTone === 'warning' ? 'warning' : ''}`}>{actionMessage}</div>
+      )}
 
       <div className="tabs">
         <button
@@ -400,6 +482,19 @@ const StepsPanel: React.FC<Props> = ({ project, pmDirectory }) => {
                   s.id === selectedStepId ? { ...s, comments: stepComments } : s
                 )
               );
+
+              const persist = async () => {
+                try {
+                  await updateStep(selectedStepId, { comments: stepComments });
+                  setActionTone('info');
+                  setActionMessage('Комментарий сохранён через API.');
+                } catch (err) {
+                  setActionTone('warning');
+                  setActionMessage('API шагов недоступно, комментарий сохранён локально.');
+                }
+              };
+
+              persist();
             }}
           >
             Сохранить

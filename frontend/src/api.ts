@@ -65,6 +65,51 @@ export async function fetchSteps(
   return getJson<Step[]>(suffix);
 }
 
+export interface StepCreatePayload {
+  project_id: number;
+  name: string;
+  description?: string;
+  status?: string;
+  assignee_id?: number;
+  start_date?: string;
+  target_date?: string;
+  completed_date?: string;
+  order_index?: number;
+  weight?: number;
+  comments?: string;
+}
+
+export async function createStep(payload: StepCreatePayload): Promise<Step> {
+  const res = await fetch(`${API_BASE}/steps`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to create step');
+  }
+  return (await res.json()) as Step;
+}
+
+export async function updateStep(stepId: number, payload: Partial<StepCreatePayload>): Promise<Step> {
+  const res = await fetch(`${API_BASE}/steps/${stepId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to update step');
+  }
+  return (await res.json()) as Step;
+}
+
+export async function deleteStep(stepId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/steps/${stepId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error('Failed to delete step');
+  }
+}
+
 export async function fetchSubtasks(
   stepId: number,
   query: { status?: string; search?: string } = {}
@@ -76,6 +121,35 @@ export async function fetchSubtasks(
     ? `/steps/${stepId}/subtasks?${params.toString()}`
     : `/steps/${stepId}/subtasks`;
   return getJson<Subtask[]>(suffix);
+}
+
+export interface SubtaskCreatePayload {
+  step_id: number;
+  name: string;
+  status?: string;
+  target_date?: string;
+  completed_date?: string;
+  order_index?: number;
+  weight?: number;
+}
+
+export async function createSubtask(payload: SubtaskCreatePayload): Promise<Subtask> {
+  const res = await fetch(`${API_BASE}/subtasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to create subtask');
+  }
+  return (await res.json()) as Subtask;
+}
+
+export async function deleteSubtask(subtaskId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/subtasks/${subtaskId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error('Failed to delete subtask');
+  }
 }
 
 export async function fetchKpi(categoryId?: number): Promise<KpiReport> {
