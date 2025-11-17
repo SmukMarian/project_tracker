@@ -54,6 +54,10 @@ export interface Project {
   steps: Step[];
   inprogress_coeff?: number;
   attachments?: Attachment[];
+  steps_total?: number;
+  steps_done?: number;
+  subtasks_total?: number;
+  subtasks_done?: number;
 }
 
 export interface Attachment {
@@ -68,6 +72,9 @@ export interface Category {
   id: number;
   name: string;
   projects: Project[];
+  progress_percent?: number;
+  average_progress?: number;
+  kpi?: KpiReport | null;
 }
 
 export type ProjectListItem = Pick<

@@ -130,6 +130,8 @@ def _status_value(status: str, inprogress_coeff: float) -> float:
     mapping = {
         "done": 1.0,
         "in_progress": inprogress_coeff,
+        "blocked": 0.0,
+        "todo": 0.0,
     }
     return mapping.get(status, 0.0)
 
@@ -148,12 +150,53 @@ def _compute_step_progress(step: models.Step, inprogress_coeff: float) -> int:
 
 
 def _apply_progress(project: models.Project) -> models.Project:
-    step_progresses: list[int] = []
+    step_progresses: list[tuple[int, float]] = []
+    steps_total = 0
+    steps_done = 0
+    subtasks_total = 0
+    subtasks_done = 0
     for step in project.steps:
         step.progress_percent = _compute_step_progress(step, project.inprogress_coeff)
-        step_progresses.append(step.progress_percent)
-    project.progress_percent = round(sum(step_progresses) / len(step_progresses)) if step_progresses else 0
+        weight = step.weight or 0.0
+        step_progresses.append((step.progress_percent, weight if weight > 0 else 0))
+        steps_total += 1
+        if step.progress_percent >= 100:
+            steps_done += 1
+        for subtask in step.subtasks:
+            subtasks_total += 1
+            if subtask.status == schemas.TaskStatus.DONE:
+                subtasks_done += 1
+    total_weight = sum(weight for _, weight in step_progresses)
+    if total_weight > 0:
+        weighted_progress = sum(progress * weight for progress, weight in step_progresses)
+        project.progress_percent = round(weighted_progress / total_weight)
+    elif step_progresses:
+        project.progress_percent = round(
+            sum(progress for progress, _ in step_progresses) / len(step_progresses)
+        )
+    else:
+        project.progress_percent = 0
+    project.steps_total = steps_total
+    project.steps_done = steps_done
+    project.subtasks_total = subtasks_total
+    project.subtasks_done = subtasks_done
     return project
+
+
+def _apply_category_metrics(category: models.Category, db: Session) -> models.Category:
+    projects = [
+        _apply_progress(project)
+        for project in category.projects
+    ]
+    if projects:
+        category.progress_percent = round(
+            sum(project.progress_percent for project in projects) / len(projects)
+        )
+    else:
+        category.progress_percent = 0
+    category.average_progress = category.progress_percent
+    category.kpi = _kpi_report(db, category.id)
+    return category
 
 
 def _workbook_response(wb: Workbook, filename: str) -> StreamingResponse:
@@ -250,14 +293,10 @@ def _kpi_report(db: Session, category_id: Optional[int] = None) -> schemas.KPIRe
     for project in projects:
         _apply_progress(project)
         total_progress += project.progress_percent
-        for step in project.steps:
-            steps_total += 1
-            if step.status == schemas.TaskStatus.DONE:
-                steps_done += 1
-            for subtask in step.subtasks:
-                subtasks_total += 1
-                if subtask.status == schemas.TaskStatus.DONE:
-                    subtasks_done += 1
+        steps_total += project.steps_total
+        steps_done += project.steps_done
+        subtasks_total += project.subtasks_total
+        subtasks_done += project.subtasks_done
 
     average_progress = round(total_progress / total_projects, 2) if total_projects else 0.0
     return schemas.KPIReport(
@@ -382,7 +421,17 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 
 @app.get("/categories", response_model=list[schemas.Category])
 def list_categories(db: Session = Depends(get_db)):
-    return db.query(models.Category).all()
+    categories = (
+        db.query(models.Category)
+        .options(
+            joinedload(models.Category.projects)
+            .joinedload(models.Project.steps)
+            .joinedload(models.Step.subtasks)
+        )
+        .order_by(models.Category.name)
+        .all()
+    )
+    return [_apply_category_metrics(category, db) for category in categories]
 
 
 @app.get("/export/categories/excel")

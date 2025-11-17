@@ -1,6 +1,6 @@
 import React from 'react';
 import { parseTokens } from '../search';
-import { Category, CategoryWithProjects, Project, ProjectListItem } from '../types';
+import { Category, CategoryWithProjects, KpiReport, Project, ProjectListItem } from '../types';
 
 interface Props {
   categories: CategoryWithProjects[];
@@ -18,6 +18,9 @@ interface Props {
   onDeleteCategory?: (category: CategoryWithProjects) => void;
   onEditProject?: (project: Project | null) => void;
   onDeleteProject?: (project: ProjectListItem) => void;
+  kpiData?: KpiReport | null;
+  kpiLoading?: boolean;
+  onRefreshKpi?: () => void;
 }
 
 const LeftPanel: React.FC<Props> = ({
@@ -35,13 +38,57 @@ const LeftPanel: React.FC<Props> = ({
   onEditCategory,
   onDeleteCategory,
   onEditProject,
-  onDeleteProject
+  onDeleteProject,
+  kpiData,
+  kpiLoading,
+  onRefreshKpi
 }) => {
   const parsedProjectFilter = parseTokens(projectFilter);
   return (
     <aside className="sidebar">
       <div className="workspace-path" title={workspacePath}>
         {workspacePath || 'Workspace не выбран'}
+      </div>
+      <div className="kpi-card">
+        <div className="kpi-card__header">
+          <div className="list-title">Прогресс / KPI</div>
+          <button className="small-button" onClick={onRefreshKpi} disabled={!onRefreshKpi || kpiLoading}>
+            Обновить
+          </button>
+        </div>
+        {kpiLoading && <div className="muted">Загрузка…</div>}
+        {!kpiLoading && kpiData && (
+          <>
+            <div className="kpi-progress">
+              <div className="kpi-progress__label">Средний прогресс</div>
+              <div className="kpi-progress-bar">
+                <div className="kpi-progress-bar__fill" style={{ width: `${kpiData.average_progress}%` }} />
+              </div>
+              <div className="kpi-progress__value">{kpiData.average_progress}%</div>
+            </div>
+            <div className="kpi-grid">
+              <div className="kpi-metric">
+                <div className="kpi-metric__label">Проекты</div>
+                <div className="kpi-metric__value">
+                  {kpiData.active_projects}/{kpiData.total_projects}
+                </div>
+              </div>
+              <div className="kpi-metric">
+                <div className="kpi-metric__label">Шаги</div>
+                <div className="kpi-metric__value">
+                  {kpiData.steps_done}/{kpiData.steps_total}
+                </div>
+              </div>
+              <div className="kpi-metric">
+                <div className="kpi-metric__label">Подзадачи</div>
+                <div className="kpi-metric__value">
+                  {kpiData.subtasks_done}/{kpiData.subtasks_total}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        {!kpiLoading && !kpiData && <div className="muted">Нет данных KPI.</div>}
       </div>
       <div className="filter-block">
         <input

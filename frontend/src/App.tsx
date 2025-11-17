@@ -55,11 +55,13 @@ const App: React.FC = () => {
   const [showPmDirectory, setShowPmDirectory] = useState(false);
   const [showKpi, setShowKpi] = useState(false);
   const [kpiData, setKpiData] = useState<KpiReport | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showProjectMedia, setShowProjectMedia] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -121,7 +123,7 @@ const App: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [error, pmDirectory, projectFilter, selectedCategoryId, seedProjects]);
+  }, [error, pmDirectory, projectFilter, refreshKey, selectedCategoryId, seedProjects]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -167,6 +169,30 @@ const App: React.FC = () => {
     return category?.projects.find((p) => p.id === selectedProjectId) ?? null;
   }, [categoriesWithProjects, selectedCategoryId, selectedProjectId]);
 
+  const refreshMetrics = () => setRefreshKey((prev) => prev + 1);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadKpi = async () => {
+      setKpiLoading(true);
+      try {
+        const data = await fetchKpi(selectedCategoryId ?? undefined);
+        if (!isMounted) return;
+        setKpiData(data);
+      } catch (err) {
+        if (!isMounted) return;
+        setKpiData(null);
+      } finally {
+        if (!isMounted) return;
+        setKpiLoading(false);
+      }
+    };
+    loadKpi();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategoryId, refreshKey]);
+
   const handleSelectProject = (categoryId: number, projectId: number) => {
     setSelectedCategoryId(categoryId);
     setSelectedProjectId(projectId);
@@ -199,6 +225,7 @@ const App: React.FC = () => {
       setInfo('Категория создана.');
     }
     setError(null);
+    refreshMetrics();
   };
 
   const handleDeleteCategory = async () => {
@@ -209,6 +236,7 @@ const App: React.FC = () => {
     setSelectedCategoryId(null);
     setSelectedProjectId(null);
     setInfo('Категория удалена.');
+    refreshMetrics();
   };
 
   const handleSaveProject = async (
@@ -245,6 +273,7 @@ const App: React.FC = () => {
     setSelectedProjectId(project.id);
     setSelectedCategoryId(project.category_id ?? null);
     setError(null);
+    refreshMetrics();
   };
 
   const handleDeleteProject = async () => {
@@ -253,6 +282,7 @@ const App: React.FC = () => {
     setProjects((prev) => prev.filter((p) => p.id !== editingProject.id));
     setSelectedProjectId(null);
     setInfo('Проект удалён.');
+    refreshMetrics();
   };
 
   const handleExportCategories = () => {
@@ -328,6 +358,9 @@ const App: React.FC = () => {
               setEditingProject(project as unknown as Project);
               setShowProjectDialog(true);
             }}
+            kpiData={kpiData}
+            kpiLoading={kpiLoading}
+            onRefreshKpi={refreshMetrics}
           />
         )}
 
@@ -350,6 +383,7 @@ const App: React.FC = () => {
                 project={selectedProject}
                 pmDirectory={pmDirectory}
                 workspacePath={workspacePath}
+                onMetricsChanged={refreshMetrics}
               />
             </>
           ) : (
