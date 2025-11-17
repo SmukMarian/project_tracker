@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+openpyxl
+python-docx
+python-pptx
+python-multipart
+pywebview
+packaging
+pyinstaller
