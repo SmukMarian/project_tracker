@@ -156,13 +156,13 @@ def main() -> None:
         LOGGER.info("Starting bundled backend")
         runner = start_backend()
 
-    def on_closed() -> None:
-        if runner:
-            stop_backend(runner)
-
     LOGGER.info("Opening desktop window at %s", args.ui_url)
     webview.create_window("Haier Project Tracker", args.ui_url, width=1280, height=800)
-    webview.start(gui="qt", shutdown=on_closed)
+
+    webview.start(gui="qt")
+
+    if runner:
+        stop_backend(runner)
 
 
 if __name__ == "__main__":
