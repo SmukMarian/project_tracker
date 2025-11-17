@@ -27,6 +27,7 @@ import AttachmentModal from './components/AttachmentModal';
 import { categories as seedCategories, pms as seedPMs } from './data';
 import { Category, KpiReport, Project } from './types';
 import { parseTokens } from './search';
+import { LayoutProvider } from './layoutContext';
 
 const App: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -40,12 +41,13 @@ const App: React.FC = () => {
     const stored = window.localStorage.getItem('theme');
     return stored === 'dark' ? 'dark' : 'light';
   });
+  const mainRef = useRef<HTMLElement | null>(null);
   const projectFilterRef = useRef<HTMLInputElement | null>(null);
   const seedProjects = useMemo(
     () => seedCategories.flatMap((c) => c.projects.map((p) => ({ ...p, category_id: c.id }))),
     []
   );
-
+  const sidebarWidth = 320;
   const [categories, setCategories] = useState<Category[]>(seedCategories);
   const [projects, setProjects] = useState<Project[]>(seedProjects);
   const [pmDirectory, setPmDirectory] = useState(seedPMs);
@@ -62,6 +64,7 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showProjectMedia, setShowProjectMedia] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [layoutProbe, setLayoutProbe] = useState({ mainWidth: 0 });
 
   useEffect(() => {
     let isMounted = true;
@@ -139,6 +142,21 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    const node = mainRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      setLayoutProbe((prev) =>
+        prev.mainWidth === Math.round(width) ? prev : { ...prev, mainWidth: Math.round(width) }
+      );
+    });
+
+    observer.observe(node);
+    return () => observer.disconnect();
   }, []);
 
   const categoriesWithProjects = useMemo(() => {
@@ -321,114 +339,127 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="app">
-      <TopMenu
-        onToggleSidebar={() => setCollapsed((v) => !v)}
-        onNewCategory={() => openCategoryDialog(null)}
-        onNewProject={() => openProjectDialog(null)}
-        onWorkspace={handleWorkspace}
-        onExportCategories={handleExportCategories}
-        onOpenPmDirectory={() => setShowPmDirectory(true)}
-        onOpenKpi={handleOpenKpi}
-        theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-      />
+    <LayoutProvider
+      value={{
+        collapsed,
+        sidebarWidth,
+        testProbe: layoutProbe,
+        setCollapsed,
+        setTestProbe: setLayoutProbe
+      }}
+    >
+      <div className="app">
+        <TopMenu
+          onToggleSidebar={() => setCollapsed((v) => !v)}
+          onNewCategory={() => openCategoryDialog(null)}
+          onNewProject={() => openProjectDialog(null)}
+          onWorkspace={handleWorkspace}
+          onExportCategories={handleExportCategories}
+          onOpenPmDirectory={() => setShowPmDirectory(true)}
+          onOpenKpi={handleOpenKpi}
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+        />
 
-      <div className="layout">
-        {!collapsed && (
-          <LeftPanel
-            categories={categoriesWithProjects}
-            selectedCategoryId={selectedCategoryId}
-            selectedProjectId={selectedProjectId}
-            onSelectCategory={setSelectedCategoryId}
-            onSelectProject={handleSelectProject}
-            categoryFilter={categoryFilter}
-            projectFilter={projectFilter}
-            onCategoryFilter={setCategoryFilter}
-            onProjectFilter={setProjectFilter}
-            workspacePath={workspacePath}
-            projectFilterRef={projectFilterRef}
-            onEditCategory={openCategoryDialog}
-            onDeleteCategory={(category) => {
-              setEditingCategory(category as unknown as Category);
-              setShowCategoryDialog(true);
+        <div
+          className={`layout ${collapsed ? 'layout--collapsed' : ''}`}
+          style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+        >
+          <div className="sidebar-shell">
+            <LeftPanel
+              categories={categoriesWithProjects}
+              selectedCategoryId={selectedCategoryId}
+              selectedProjectId={selectedProjectId}
+              onSelectCategory={setSelectedCategoryId}
+              onSelectProject={handleSelectProject}
+              categoryFilter={categoryFilter}
+              projectFilter={projectFilter}
+              onCategoryFilter={setCategoryFilter}
+              onProjectFilter={setProjectFilter}
+              workspacePath={workspacePath}
+              projectFilterRef={projectFilterRef}
+              onEditCategory={openCategoryDialog}
+              onDeleteCategory={(category) => {
+                setEditingCategory(category as unknown as Category);
+                setShowCategoryDialog(true);
+              }}
+              onEditProject={openProjectDialog}
+              onDeleteProject={(project) => {
+                setEditingProject(project as unknown as Project);
+                setShowProjectDialog(true);
+              }}
+              kpiData={kpiData}
+              kpiLoading={kpiLoading}
+              onRefreshKpi={refreshMetrics}
+            />
+          </div>
+
+          <main className="main" ref={mainRef}>
+            {loading && <div className="info">Загрузка данных…</div>}
+            {info && <div className="info success">{info}</div>}
+            {error && <div className="info warning">{error}</div>}
+            {selectedProject ? (
+              <>
+                <ProjectCard
+                  project={selectedProject}
+                  pmDirectory={pmDirectory}
+                  workspacePath={workspacePath}
+                  onExportWord={handleExportWord}
+                  onExportPresentation={handleExportPresentation}
+                  onEdit={() => openProjectDialog(selectedProject)}
+                  onOpenMedia={() => setShowProjectMedia(true)}
+                />
+                <StepsPanel
+                  project={selectedProject}
+                  pmDirectory={pmDirectory}
+                  workspacePath={workspacePath}
+                  onMetricsChanged={refreshMetrics}
+                />
+              </>
+            ) : (
+              <div className="empty">Выберите проект слева, чтобы увидеть детали.</div>
+            )}
+          </main>
+        </div>
+        {showPmDirectory && (
+          <PmDirectory pms={pmDirectory} onClose={() => setShowPmDirectory(false)} />
+        )}
+        {showKpi && kpiData && <KpiModal data={kpiData} onClose={() => setShowKpi(false)} />}
+        {showCategoryDialog && (
+          <CategoryDialog
+            initial={editingCategory}
+            onSave={handleSaveCategory}
+            onDelete={editingCategory ? handleDeleteCategory : undefined}
+            onClose={() => {
+              setShowCategoryDialog(false);
+              setEditingCategory(null);
             }}
-            onEditProject={openProjectDialog}
-            onDeleteProject={(project) => {
-              setEditingProject(project as unknown as Project);
-              setShowProjectDialog(true);
-            }}
-            kpiData={kpiData}
-            kpiLoading={kpiLoading}
-            onRefreshKpi={refreshMetrics}
           />
         )}
-
-        <main className="main">
-          {loading && <div className="info">Загрузка данных…</div>}
-          {info && <div className="info success">{info}</div>}
-          {error && <div className="info warning">{error}</div>}
-          {selectedProject ? (
-            <>
-              <ProjectCard
-                project={selectedProject}
-                pmDirectory={pmDirectory}
-                workspacePath={workspacePath}
-                onExportWord={handleExportWord}
-                onExportPresentation={handleExportPresentation}
-                onEdit={() => openProjectDialog(selectedProject)}
-                onOpenMedia={() => setShowProjectMedia(true)}
-              />
-              <StepsPanel
-                project={selectedProject}
-                pmDirectory={pmDirectory}
-                workspacePath={workspacePath}
-                onMetricsChanged={refreshMetrics}
-              />
-            </>
-          ) : (
-            <div className="empty">Выберите проект слева, чтобы увидеть детали.</div>
-          )}
-        </main>
+        {showProjectDialog && (
+          <ProjectDialog
+            categories={categories}
+            pms={pmDirectory}
+            initial={editingProject}
+            defaultCategoryId={selectedCategoryId ?? undefined}
+            onSave={handleSaveProject}
+            onDelete={editingProject ? handleDeleteProject : undefined}
+            onClose={() => {
+              setShowProjectDialog(false);
+              setEditingProject(null);
+            }}
+          />
+        )}
+        {showProjectMedia && selectedProject && (
+          <AttachmentModal
+            projectId={selectedProject.id}
+            projectName={selectedProject.name}
+            workspacePath={workspacePath}
+            onClose={() => setShowProjectMedia(false)}
+          />
+        )}
       </div>
-      {showPmDirectory && (
-        <PmDirectory pms={pmDirectory} onClose={() => setShowPmDirectory(false)} />
-      )}
-      {showKpi && kpiData && <KpiModal data={kpiData} onClose={() => setShowKpi(false)} />}
-      {showCategoryDialog && (
-        <CategoryDialog
-          initial={editingCategory}
-          onSave={handleSaveCategory}
-          onDelete={editingCategory ? handleDeleteCategory : undefined}
-          onClose={() => {
-            setShowCategoryDialog(false);
-            setEditingCategory(null);
-          }}
-        />
-      )}
-      {showProjectDialog && (
-        <ProjectDialog
-          categories={categories}
-          pms={pmDirectory}
-          initial={editingProject}
-          defaultCategoryId={selectedCategoryId ?? undefined}
-          onSave={handleSaveProject}
-          onDelete={editingProject ? handleDeleteProject : undefined}
-          onClose={() => {
-            setShowProjectDialog(false);
-            setEditingProject(null);
-          }}
-        />
-      )}
-      {showProjectMedia && selectedProject && (
-        <AttachmentModal
-          projectId={selectedProject.id}
-          projectName={selectedProject.name}
-          workspacePath={workspacePath}
-          onClose={() => setShowProjectMedia(false)}
-        />
-      )}
-    </div>
+    </LayoutProvider>
   );
 };
 
