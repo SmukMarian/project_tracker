@@ -244,6 +244,11 @@ class UpdateManifest(BaseModel):
         None, description="URL to download the installer or binary for the update"
     )
     notes: Optional[str] = Field(None, description="Release notes or changelog text")
+    sha256: Optional[str] = Field(
+        None,
+        description="Optional SHA-256 checksum (hex) of the referenced installer",
+        regex=r"^[a-fA-F0-9]{64}$",
+    )
 
 
 class KPIReport(BaseModel):

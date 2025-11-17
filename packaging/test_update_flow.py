@@ -8,6 +8,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict
 
+import hashlib
+
 
 def load_json(url: str, timeout: float = 10.0) -> Dict[str, Any]:
     with urllib.request.urlopen(url, timeout=timeout) as resp:  # nosec: B310 - trusted local endpoint
@@ -32,6 +34,14 @@ def validate_manifest(manifest: Dict[str, Any]) -> None:
         raise ValueError("Manifest 'download_url' must be a string URL")
     if "notes" in manifest and not isinstance(manifest["notes"], (str, list)):
         raise ValueError("Manifest 'notes' must be a string or list of strings if present")
+    if "sha256" in manifest:
+        sha = manifest["sha256"]
+        if sha is not None and (
+            not isinstance(sha, str)
+            or len(sha) != 64
+            or any(c not in "0123456789abcdefABCDEF" for c in sha)
+        ):
+            raise ValueError("Manifest 'sha256' must be a 64-char hex string if present")
 
 
 def download_file(url: str, destination: Path, timeout: float = 30.0) -> Path:
@@ -42,6 +52,14 @@ def download_file(url: str, destination: Path, timeout: float = 30.0) -> Path:
     if destination.stat().st_size == 0:
         raise ValueError("Downloaded file is empty")
     return destination
+
+
+def compute_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(65536), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 def main() -> int:
@@ -59,6 +77,10 @@ def main() -> int:
     parser.add_argument(
         "--expected-version",
         help="If provided, the manifest version must match this value.",
+    )
+    parser.add_argument(
+        "--expected-sha256",
+        help="If provided, the downloaded package hash must match this value (or manifest sha256 if set).",
     )
     parser.add_argument(
         "--download/--no-download",
@@ -83,6 +105,7 @@ def main() -> int:
     version = manifest.get("version")
     download_url = manifest.get("download_url")
     notes = manifest.get("notes")
+    manifest_sha = manifest.get("sha256")
 
     print(f"[ok] Manifest loaded: version={version}, download_url={download_url}")
     if notes:
@@ -102,6 +125,17 @@ def main() -> int:
         target_path = Path(target_dir) / filename
         downloaded = download_file(download_url, target_path)
         print(f"[ok] Downloaded package to {downloaded} ({downloaded.stat().st_size} bytes)")
+        sha256 = compute_sha256(downloaded)
+        expected_sha = args.expected_sha256 or manifest_sha
+        if expected_sha:
+            if sha256.lower() != expected_sha.lower():
+                print(
+                    f"[error] SHA mismatch: expected {expected_sha}, got {sha256}",
+                )
+                return 1
+            print(f"[ok] SHA verified: {sha256}")
+        else:
+            print(f"[info] SHA256={sha256} (no expected value provided)")
     except Exception as exc:  # pragma: no cover - CLI guardrail
         print(f"[error] Download failed: {exc}")
         return 1

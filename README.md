@@ -26,7 +26,7 @@ SPA пытается загрузить данные с API (`VITE_API_BASE`, п
 
 Медиатека открывается из карточки проекта или панели шагов; загрузка файлов пишет их в подкаталог `media` внутри выбранного workspace и сразу сохраняет ссылку в базе. Список вложений можно удалить или открыть по полному пути.
 
-Для хостинга обновлений backend предоставляет: `GET/POST /updates/manifest` (JSON-манифест версии/ссылки/описания в `workspace/updates/manifest.json`), `POST /updates/package` для загрузки бинарника и `GET /updates/download/{filename}` для его раздачи. Это позволяет использовать локальный сервер как источник обновлений для desktop-обёртки.
+Для хостинга обновлений backend предоставляет: `GET/POST /updates/manifest` (JSON-манифест версии/ссылки/описания и опционального `sha256` в `workspace/updates/manifest.json`), `POST /updates/package` для загрузки бинарника (в ответе возвращает рассчитанный SHA-256) и `GET /updates/download/{filename}` для его раздачи. Это позволяет использовать локальный сервер как источник обновлений для desktop-обёртки.
 
 ## Desktop-обёртка
 1. Установите Python-зависимости (см. backend): `pip install -r requirements.txt`.
@@ -47,8 +47,8 @@ SPA пытается загрузить данные с API (`VITE_API_BASE`, п
 ## Смоук-тест обновлений
 - Запустите backend (`uvicorn backend.app:app --reload`) и убедитесь, что workspace выбран.
 - Проверьте раздачу манифеста и пакета одной командой:
-  - `python packaging/test_update_flow.py --manifest-url http://127.0.0.1:8000/updates/manifest --expected-version 0.1.0`
-- Скрипт валидирует JSON-манифест, при необходимости предупреждает о некорректном `Content-Type`, сравнивает ожидаемую версию и скачивает файл из `download_url`, проверяя, что размер не нулевой.
+  - `python packaging/test_update_flow.py --manifest-url http://127.0.0.1:8000/updates/manifest --expected-version 0.1.0 --expected-sha256 <sha из upload-пакета или manifest>`
+- Скрипт валидирует JSON-манифест, при необходимости предупреждает о некорректном `Content-Type`, сравнивает ожидаемую версию, скачивает файл из `download_url`, проверяет, что размер не нулевой, и сверяет SHA-256 с указанным значением (из аргумента или из `manifest.sha256`).
 
 ## Структура
 - `backend/` — FastAPI + SQLAlchemy схема данных, базовые endpoint'ы и расчёт прогресса.

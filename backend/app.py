@@ -1,6 +1,6 @@
 from io import BytesIO
+import hashlib
 import logging
-from pathlib import Path
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -96,8 +96,13 @@ def upload_update_package(file: UploadFile = File(...)):
     dest = updates_dir / file.filename
     with dest.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    LOGGER.info("Uploaded update package to %s", dest)
-    return {"filename": file.filename, "url": f"/updates/download/{file.filename}"}
+    digest = hashlib.sha256(dest.read_bytes()).hexdigest()
+    LOGGER.info("Uploaded update package to %s (sha256=%s)", dest, digest)
+    return {
+        "filename": file.filename,
+        "url": f"/updates/download/{file.filename}",
+        "sha256": digest,
+    }
 
 
 @app.get("/updates/download/{filename}")
