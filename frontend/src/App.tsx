@@ -66,6 +66,17 @@ const App: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [layoutProbe, setLayoutProbe] = useState({ mainWidth: 0 });
 
+  const applyTheme = (next: 'light' | 'dark') => {
+    const root = document.documentElement;
+    const body = document.body;
+    root.setAttribute('data-theme', next);
+    root.classList.toggle('theme-dark', next === 'dark');
+    root.classList.toggle('theme-light', next === 'light');
+    body.classList.toggle('theme-dark', next === 'dark');
+    body.classList.toggle('theme-light', next === 'light');
+    body.setAttribute('data-theme', next);
+  };
+
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
@@ -129,7 +140,7 @@ const App: React.FC = () => {
   }, [error, pmDirectory, projectFilter, refreshKey, selectedCategoryId, seedProjects]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    applyTheme(theme);
     window.localStorage.setItem('theme', theme);
   }, [theme]);
 
