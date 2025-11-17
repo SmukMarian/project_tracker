@@ -1,9 +1,9 @@
 import React from 'react';
 import { parseTokens } from '../search';
-import { Category, Project } from '../types';
+import { CategoryWithProjects, ProjectListItem } from '../types';
 
 interface Props {
-  categories: Category[];
+  categories: CategoryWithProjects[];
   selectedCategoryId: number | null;
   selectedProjectId: number | null;
   onSelectCategory: (id: number) => void;
@@ -14,10 +14,10 @@ interface Props {
   onProjectFilter: (value: string) => void;
   workspacePath: string;
   projectFilterRef: React.RefObject<HTMLInputElement>;
-  onEditCategory?: (category: Category) => void;
-  onDeleteCategory?: (category: Category) => void;
-  onEditProject?: (project: Project) => void;
-  onDeleteProject?: (project: Project) => void;
+  onEditCategory?: (category: CategoryWithProjects) => void;
+  onDeleteCategory?: (category: CategoryWithProjects) => void;
+  onEditProject?: (project: ProjectListItem) => void;
+  onDeleteProject?: (project: ProjectListItem) => void;
 }
 
 const LeftPanel: React.FC<Props> = ({

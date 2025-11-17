@@ -68,6 +68,17 @@ export interface Category {
   projects: Project[];
 }
 
+export type ProjectListItem = Pick<
+  Project,
+  'id' | 'name' | 'code' | 'status' | 'start_date' | 'target_date' | 'progress_percent' | 'category_id'
+>;
+
+export interface CategoryWithProjects {
+  id: number;
+  name: string;
+  projects: ProjectListItem[];
+}
+
 export interface WorkspaceState {
   path: string;
 }
