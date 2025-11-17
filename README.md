@@ -41,8 +41,9 @@ SPA пытается загрузить данные с API (`VITE_API_BASE`, п
 ## Сборка установщика (Windows)
 1. Установите дополнительную зависимость PyInstaller: `pip install pyinstaller` (и по желанию NSIS для полноценного setup.exe).
 2. Соберите SPA (`npm run build`).
-3. Выполните `python packaging/build_installer.py --version 0.1.0 --with-nsis` из корня репозитория.
+3. Выполните `python packaging/build_installer.py --version 0.1.0 --with-nsis --workspace <путь к workspace>` из корня репозитория.
    - В `dist/` появится `haier-project-tracker.exe`; при наличии `makensis` — `HaierProjectTracker-Setup-<версия>.exe` по скрипту `packaging/installer.nsi`.
+   - При переданном `--workspace` артефакты копируются в `<workspace>/updates/`, туда же пишется `manifest.json` с `version`, `download_url` (по умолчанию `http://127.0.0.1:8000/updates/download/<файл>`) и `sha256`. Опциональный `--notes` добавляет release notes.
 
 ## Смоук-тест обновлений
 - Запустите backend (`uvicorn backend.app:app --reload`) и убедитесь, что workspace выбран.

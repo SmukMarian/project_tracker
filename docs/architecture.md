@@ -36,4 +36,5 @@ Local-first desktop/web hybrid for project, step, and subtask tracking with Fast
 
 ## Next steps
 1. Прогонять смоук-тест обновлений (`python packaging/test_update_flow.py`) после сборки инсталлятора, чтобы подтвердить валидность манифеста, контрольной суммы и скачиваемого пакета.
-2. Расширить покрытие автопроверок установки/обновления (PyInstaller + NSIS) по мере появления CI.
+2. Использовать `packaging/build_installer.py --workspace <path>` для автоматического копирования артефактов и генерации manifest.json в workspace/updates перед хостингом обновлений.
+3. Расширить покрытие автопроверок установки/обновления (PyInstaller + NSIS) по мере появления CI.
