@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 import shutil
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -31,10 +31,15 @@ LOGGER = setup_logging(get_workspace_path() / "logs")
 DIST_DIR = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 if DIST_DIR.exists():
     app.mount("/app", StaticFiles(directory=DIST_DIR, html=True), name="spa")
+    app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 
     @app.get("/")
     def serve_spa_root():
         return FileResponse(DIST_DIR / "index.html")
+
+    @app.get("/app/", response_class=HTMLResponse)
+    def serve_spa_index():
+        return (DIST_DIR / "index.html").read_text(encoding="utf-8")
 
 
 def get_db():
