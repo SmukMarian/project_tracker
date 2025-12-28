@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { buildWorkspaceFileUrl } from '../api';
 import { PM, Project } from '../types';
 
 interface Props {
@@ -20,23 +21,43 @@ const ProjectCard: React.FC<Props> = ({
   onEdit,
   onOpenMedia
 }) => {
+  const [coverLoading, setCoverLoading] = useState<boolean>(!!project.cover_image);
+  const [coverFailed, setCoverFailed] = useState<boolean>(false);
   const owner = pmDirectory.find((pm) => pm.id === project.owner_id);
   const projectStatusLabel: Record<Project['status'], string> = {
     active: 'Active',
     archived: 'Archived'
   };
-  const coverSrc = project.cover_image
-    ? workspacePath
-      ? `${workspacePath.replace(/\\$/, '')}/${project.cover_image}`
-      : project.cover_image
-    : null;
+  const coverSrc = project.cover_image ? buildWorkspaceFileUrl(project.cover_image) : null;
+
+  useEffect(() => {
+    setCoverFailed(false);
+    setCoverLoading(!!coverSrc);
+  }, [coverSrc]);
+
   return (
     <section className="project-card">
       <div className="cover" aria-label="Обложка проекта">
-        {coverSrc ? (
-          <img src={coverSrc} alt="Обложка" />
+        {coverSrc && !coverFailed ? (
+          <>
+            <img
+              src={coverSrc}
+              alt="Обложка"
+              loading="lazy"
+              onLoad={() => setCoverLoading(false)}
+              onError={() => {
+                setCoverFailed(true);
+                setCoverLoading(false);
+              }}
+            />
+            {coverLoading && (
+              <div className="cover-spinner" aria-label="Загрузка обложки">
+                <div className="spinner-ring" />
+              </div>
+            )}
+          </>
         ) : (
-          <div className="cover-placeholder">Без обложки</div>
+          <div className="cover-placeholder">{coverFailed ? 'Ошибка загрузки' : 'Без обложки'}</div>
         )}
       </div>
       <div className="project-meta">

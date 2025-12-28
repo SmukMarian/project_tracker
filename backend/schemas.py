@@ -253,6 +253,25 @@ class WorkspaceUpdate(BaseModel):
     path: str
 
 
+class CacheStatus(BaseModel):
+    media_files: int
+    thumbnails: int
+    last_thumbnail_run: Optional[str] = None
+    last_prewarm: Optional[str] = None
+
+
+class CacheRunResult(BaseModel):
+    processed: int
+    created: int
+    skipped: int
+    failures: list[str] = []
+
+
+class CachePrewarmResult(BaseModel):
+    files_touched: int
+    total_items: int
+
+
 class UpdateManifest(BaseModel):
     version: str = Field(..., description="Application version (semver)")
     download_url: Optional[str] = Field(

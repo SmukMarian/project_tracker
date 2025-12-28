@@ -12,6 +12,19 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
+export function buildWorkspaceFileUrl(path: string): string {
+  if (!path) return '';
+  if (/^(https?:)?\/\//i.test(path) || path.startsWith('data:') || path.startsWith('file:')) {
+    return path;
+  }
+  const cleaned = path.replace(/^[\\/]+/, '').split(/[\\/]+/).filter(Boolean).join('/');
+  const encoded = cleaned
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `${API_BASE}/files/${encoded}`;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) {
