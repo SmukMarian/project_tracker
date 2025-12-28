@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cache Admin</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --danger: #ef4444;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .card {
+        max-width: 920px;
+        margin: 0 auto;
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 26px;
+      }
+      p {
+        margin: 0 0 18px;
+        color: var(--muted);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+        color: #0b1224;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(34, 211, 238, 0.35);
+      }
+      button.danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: #fff;
+      }
+      .status {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .status strong {
+        color: #fff;
+      }
+      .log {
+        margin-top: 14px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        padding: 12px;
+        min-height: 70px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        white-space: pre-wrap;
+      }
+      .spinner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .ring {
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.18);
+        border-top-color: #38bdf8;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .metric {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .metric .label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .metric .value {
+        font-size: 20px;
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Кэш и миниатюры</h1>
+      <p>Управляйте прогревом кэша и генерацией миниатюр медиа из workspace.</p>
+      <div class="actions">
+        <button id="thumbs">Сгенерировать миниатюры</button>
+        <button id="prewarm">Прогреть кэш</button>
+        <button id="refresh">Обновить статус</button>
+        <button id="clear" class="danger">Очистить кэш</button>
+      </div>
+      <div class="row" id="metrics"></div>
+      <div class="status" id="status">Статус загружается…</div>
+      <div class="log" id="log"></div>
+    </div>
+    <script>
+      const statusBox = document.getElementById("status");
+      const logBox = document.getElementById("log");
+      const metricsBox = document.getElementById("metrics");
+      const buttons = {
+        thumbs: document.getElementById("thumbs"),
+        prewarm: document.getElementById("prewarm"),
+        refresh: document.getElementById("refresh"),
+        clear: document.getElementById("clear"),
+      };
+
+      const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : "—");
+
+      async function fetchStatus() {
+        const res = await fetch("/cache/status");
+        if (!res.ok) throw new Error("Не удалось получить статус");
+        return res.json();
+      }
+
+      function renderMetrics(data) {
+        metricsBox.innerHTML = `
+          <div class="metric"><div class="label">Медиа-файлов</div><div class="value">${data.media_files}</div></div>
+          <div class="metric"><div class="label">Миниатюр</div><div class="value">${data.thumbnails}</div></div>
+          <div class="metric"><div class="label">Последняя генерация</div><div class="value">${fmt(
+            data.last_thumbnail_run
+          )}</div></div>
+          <div class="metric"><div class="label">Последний прогрев</div><div class="value">${fmt(
+            data.last_prewarm
+          )}</div></div>
+        `;
+      }
+
+      async function setBusy(isBusy, label = "Выполняется…") {
+        Object.values(buttons).forEach((btn) => (btn.disabled = isBusy));
+        statusBox.innerHTML = isBusy
+          ? `<span class="spinner"><span class="ring" aria-hidden="true"></span>${label}</span>`
+          : "";
+      }
+
+      function appendLog(text) {
+        const ts = new Date().toLocaleTimeString();
+        logBox.textContent = `[${ts}] ${text}\n` + logBox.textContent;
+      }
+
+      async function init() {
+        await updateStatus();
+        buttons.refresh.addEventListener("click", updateStatus);
+        buttons.thumbs.addEventListener("click", () => runAction("/cache/thumbnails", "POST", "Генерация миниатюр…"));
+        buttons.prewarm.addEventListener("click", () => runAction("/cache/prewarm", "POST", "Прогрев кэша…"));
+        buttons.clear.addEventListener("click", () => runAction("/cache", "DELETE", "Очистка кэша…"));
+      }
+
+      async function updateStatus() {
+        await setBusy(true, "Обновляем статус…");
+        try {
+          const data = await fetchStatus();
+          renderMetrics(data);
+          statusBox.textContent = "Статус обновлён.";
+        } catch (err) {
+          statusBox.textContent = err.message;
+          appendLog(err.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function runAction(url, method, label) {
+        await setBusy(true, label);
+        try {
+          const res = await fetch(url, { method });
+          if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+          const data = method === "DELETE" ? { message: "Кэш очищен" } : await res.json();
+          appendLog(`${label.replace("…", "")} — OK (${JSON.stringify(data)})`);
+          await updateStatus();
+        } catch (err) {
+          appendLog(err.message);
+          statusBox.textContent = err.message;
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>

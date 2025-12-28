@@ -3,6 +3,7 @@ import {
   deleteAttachment,
   fetchProjectAttachments,
   fetchStepAttachments,
+  buildWorkspaceFileUrl,
   uploadAttachment
 } from '../api';
 import { Attachment } from '../types';
@@ -80,10 +81,8 @@ const AttachmentModal: React.FC<Props> = ({
     }
   };
 
-  const resolvePath = (path: string) => {
-    if (!workspacePath) return path;
-    return `${workspacePath.replace(/\\$/, '')}/${path}`;
-  };
+  const resolvePath = (path: string) =>
+    workspacePath ? `${workspacePath.replace(/\\$/, '')}/${path}` : path;
 
   return (
     <div className="modal-backdrop">
@@ -125,7 +124,7 @@ const AttachmentModal: React.FC<Props> = ({
                   <span>{att.added_at ?? '—'}</span>
                   <div className="actions">
                     <a
-                      href={workspacePath ? `file://${resolvePath(att.path)}` : '#'}
+                      href={buildWorkspaceFileUrl(att.path)}
                       target="_blank"
                       rel="noreferrer"
                       className="menu-button ghost"

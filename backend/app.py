@@ -1,17 +1,20 @@
-from io import BytesIO
 import hashlib
+import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from io import BytesIO
 import shutil
+
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
+from PIL import Image
 from docx import Document
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
@@ -41,6 +44,13 @@ if DIST_DIR.exists():
     def serve_spa_index():
         return (DIST_DIR / "index.html").read_text(encoding="utf-8")
 
+    @app.get("/cache-admin.html", response_class=HTMLResponse)
+    def serve_cache_admin():
+        cache_page = DIST_DIR / "cache-admin.html"
+        if not cache_page.exists():
+            raise HTTPException(status_code=404, detail="Cache admin page not found")
+        return cache_page.read_text(encoding="utf-8")
+
 
 def get_db():
     db = SessionLocal()
@@ -55,6 +65,19 @@ def _media_root() -> Path:
     media_root = workspace / "media"
     media_root.mkdir(parents=True, exist_ok=True)
     return media_root
+
+
+def _resolve_workspace_file(path: str) -> Path:
+    workspace = get_workspace_path()
+    normalized = Path(path.replace("\\", "/"))
+    target = (workspace / normalized).resolve()
+    try:
+        target.relative_to(workspace)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return target
 
 
 @app.get("/health")
@@ -124,6 +147,138 @@ def download_update_package(filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
+
+
+@app.get("/files/{file_path:path}")
+def serve_workspace_file(file_path: str):
+    """Expose files stored under the current workspace (covers, media, attachments)."""
+    target = _resolve_workspace_file(file_path)
+    return FileResponse(target, headers={"Cache-Control": "no-store"})
+
+
+def _cache_root() -> Path:
+    workspace = get_workspace_path()
+    cache_root = workspace / "cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
+    return cache_root
+
+
+def _cache_meta_path() -> Path:
+    return _cache_root() / "meta.json"
+
+
+def _read_cache_meta() -> dict:
+    meta_path = _cache_meta_path()
+    if meta_path.exists():
+        try:
+            return json.loads(meta_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _write_cache_meta(data: dict) -> None:
+    meta_path = _cache_meta_path()
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _iter_media_files():
+    media_root = _media_root()
+    if not media_root.exists():
+        return []
+    return [
+        path
+        for path in media_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    ]
+
+
+def _build_thumbnails(max_size: tuple[int, int] = (512, 512)) -> dict:
+    media_files = _iter_media_files()
+    cache_root = _cache_root()
+    thumb_root = cache_root / "thumbnails"
+    created = 0
+    skipped = 0
+    failures: list[str] = []
+    for src in media_files:
+        rel = src.relative_to(get_workspace_path())
+        dest = thumb_root / rel
+        dest_suffix = dest.suffix.lower() or ".jpg"
+        format_name = "PNG" if dest_suffix == ".png" else "JPEG"
+        dest_file = dest.with_suffix(".jpg" if format_name == "JPEG" else dest.suffix)
+        if dest_file.exists() and dest_file.stat().st_mtime >= src.stat().st_mtime:
+            skipped += 1
+            continue
+        dest_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with Image.open(src) as img:
+                img = img.convert("RGB")
+                img.thumbnail(max_size)
+                img.save(dest_file, format=format_name, optimize=True, quality=85)
+                created += 1
+        except Exception as exc:  # pragma: no cover - defensive log
+            failures.append(f"{src.name}: {exc}")
+    meta = _read_cache_meta()
+    meta["last_thumbnail_run"] = datetime.utcnow().isoformat() + "Z"
+    _write_cache_meta(meta)
+    return {"processed": len(media_files), "created": created, "skipped": skipped, "failures": failures}
+
+
+def _prewarm_cache() -> dict:
+    files = list(_media_root().rglob("*"))
+    touched = 0
+    for path in files:
+        if not path.is_file():
+            continue
+        try:
+            with path.open("rb") as handle:
+                handle.read(1024)
+            touched += 1
+        except OSError:
+            continue
+    meta = _read_cache_meta()
+    meta["last_prewarm"] = datetime.utcnow().isoformat() + "Z"
+    _write_cache_meta(meta)
+    return {"files_touched": touched, "total_items": len(files)}
+
+
+def _cache_status() -> dict:
+    media_files = _iter_media_files()
+    thumb_root = _cache_root() / "thumbnails"
+    thumbnails = list(thumb_root.rglob("*")) if thumb_root.exists() else []
+    meta = _read_cache_meta()
+    return {
+        "media_files": len(media_files),
+        "thumbnails": len([p for p in thumbnails if p.is_file()]),
+        "last_thumbnail_run": meta.get("last_thumbnail_run"),
+        "last_prewarm": meta.get("last_prewarm"),
+    }
+
+
+@app.get("/cache/status", response_model=schemas.CacheStatus)
+def cache_status():
+    return _cache_status()
+
+
+@app.post("/cache/thumbnails", response_model=schemas.CacheRunResult)
+def cache_build_thumbnails():
+    return _build_thumbnails()
+
+
+@app.post("/cache/prewarm", response_model=schemas.CachePrewarmResult)
+def cache_prewarm():
+    return _prewarm_cache()
+
+
+@app.delete("/cache", status_code=204)
+def cache_clear():
+    cache_root = _cache_root()
+    try:
+        shutil.rmtree(cache_root)
+    except FileNotFoundError:
+        return
+    cache_root.mkdir(parents=True, exist_ok=True)
 
 
 def _status_value(status: str, inprogress_coeff: float) -> float:
